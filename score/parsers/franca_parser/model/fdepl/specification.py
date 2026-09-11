@@ -18,10 +18,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 
-from score.ecu_model.common.franca_name_types import (
-    FullyQualifiedName,
-    ValidIdentifier,
-)
+from score.ecu_model.common.common_name_types import Identifier, QualifiedName
 
 
 class DeploymentPropertyType(str, Enum):
@@ -48,7 +45,7 @@ class ParameterLiability:
     """Optionality or default value associated with a property declaration."""
 
     property_flag: PropertyFlag
-    default_value: int | str | bool | ValidIdentifier | list[object] | None = None
+    default_value: int | str | bool | Identifier | list[object] | None = None
 
 
 @dataclass
@@ -57,8 +54,8 @@ class DeploymentPropertyTypeReference:
 
     property_type: DeploymentPropertyType
     is_array: bool = False
-    extension: ValidIdentifier | None = None
-    enumerators: list[ValidIdentifier] = field(default_factory=list)
+    extension: Identifier | None = None
+    enumerators: list[Identifier] = field(default_factory=list)
 
 
 @dataclass
@@ -66,7 +63,7 @@ class ParameterDeclaration:
     """One deployment property declared for a deployment host."""
 
     host: str
-    name: ValidIdentifier
+    name: Identifier
     type_reference: DeploymentPropertyTypeReference
     liabilities: list[ParameterLiability] = field(default_factory=list)
 
@@ -75,6 +72,6 @@ class ParameterDeclaration:
 class DeploymentSpecification:
     """Named FDEPL specification and its property declarations by host."""
 
-    name: FullyQualifiedName
-    base_specifications: list[FullyQualifiedName | "DeploymentSpecification"] = field(default_factory=list)
+    name: QualifiedName
+    base_specifications: list[QualifiedName | "DeploymentSpecification"] = field(default_factory=list)
     hosts: dict[str, dict[str, ParameterDeclaration]] = field(default_factory=dict)

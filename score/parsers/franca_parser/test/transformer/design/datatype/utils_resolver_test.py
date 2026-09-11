@@ -15,19 +15,16 @@
 
 import unittest
 
-from score.ecu_model.common.franca_name_types import (
-    FullyQualifiedName,
-    ValidIdentifier,
-)
+from score.ecu_model.common.common_name_types import Identifier, QualifiedName
 from score.parsers.franca_parser.transformer.resolver.utils_resolver import (
     matches_named_element_reference,
     matches_use_definition_reference,
 )
 
 
-def qualified_name(value: str) -> FullyQualifiedName:
+def qualified_name(value: str) -> QualifiedName:
     """Create a qualified Franca name from a readable dotted test value."""
-    return FullyQualifiedName(names=[ValidIdentifier(part) for part in value.split(".")])
+    return QualifiedName(names=[Identifier(part) for part in value.split(".")])
 
 
 class UtilsResolverTest(unittest.TestCase):
@@ -73,7 +70,7 @@ class UtilsResolverTest(unittest.TestCase):
     def test_matches_named_element_reference_given_identifier_name_expect_match(self) -> None:
         matches = matches_named_element_reference(
             qualified_name("b.c.Element"),
-            ValidIdentifier("Element"),
+            Identifier("Element"),
             qualified_name("a.b.c"),
             qualified_name("a.b"),
         )

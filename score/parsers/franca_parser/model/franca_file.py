@@ -16,7 +16,7 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from score.ecu_model.common.franca_name_types import FullyQualifiedName
+from score.ecu_model.common.common_name_types import QualifiedName
 
 
 @dataclass(frozen=True)
@@ -24,7 +24,7 @@ class ImportedNamespace:
     """Resolved Franca import and its optional namespace filter."""
 
     file_path: Path
-    namespace: FullyQualifiedName | None
+    namespace: QualifiedName | None
     is_wildcard: bool = False
 
 
@@ -33,7 +33,7 @@ class FrancaFileModel:
     """Common transformed result for a Franca source file."""
 
     file_path: Path
-    namespace: FullyQualifiedName | None
+    namespace: QualifiedName | None
     imported_files: list[ImportedNamespace] = field(default_factory=list)
 
 

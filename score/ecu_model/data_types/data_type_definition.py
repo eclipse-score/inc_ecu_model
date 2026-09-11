@@ -17,19 +17,12 @@ from enum import Enum
 from typing import Annotated, Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from score.ecu_model.common.cpp_name_types import (
-    Identifier,
-    QualifiedNamespace,
-)
+from score.ecu_model.common.common_name_types import Identifier, QualifiedName
 from score.ecu_model.common.bazel_target_validator import (
     validate_bazel_target_text,
 )
 from score.ecu_model.common.file_system_path_validator import (
     validate_path_text,
-)
-from score.ecu_model.common.name_types import (
-    BaseIdentifier,
-    BaseQualifiedName,
 )
 
 
@@ -74,10 +67,10 @@ class DataTypeModel(BaseModel):
     kind: DataTypeKind = Field(
         description="Discriminator identifying the concrete data type definition kind",
     )
-    name: BaseIdentifier = Field(
+    name: Identifier = Field(
         description="Name of the data type definition in its source namespace",
     )
-    namespace: BaseQualifiedName | None = Field(
+    namespace: QualifiedName | None = Field(
         default=None,
         description="Optional namespace/module/package in which this data type is declared",
     )
@@ -99,10 +92,10 @@ class DataTypeModel(BaseModel):
     )
 
     @property
-    def data_type_key(self) -> str:
-        """Unique key used by DataTypeRegistry."""
-        name_parts = self.namespace.names + [self.name] if self.namespace is not None else [self.name]  # pylint: disable=no-member
-        return "::".join(name.as_str for name in name_parts)
+    def fully_qualified_name(self) -> QualifiedName:
+        """Return the data type name prefixed with its namespace."""
+        names = self.namespace.names if self.namespace is not None else []
+        return QualifiedName(names=[*names, self.name])
 
     @field_validator("source_uri")
     @classmethod
@@ -143,11 +136,11 @@ class EnumDataType(DataTypeModel):
     """Definition of an enum data type with named literals."""
 
     kind: Literal[DataTypeKind.ENUM] = DataTypeKind.ENUM
-    extends: BaseQualifiedName | EnumDataType | None = None
+    extends: QualifiedName | EnumDataType | None = None
     underlying_type: PrimitiveDataType = Field(
         default_factory=lambda: PrimitiveDataType(
             name=Identifier("uint32_t"),
-            namespace=QualifiedNamespace("std"),
+            namespace=QualifiedName(names=[Identifier("std")]),
             primitive=PrimitiveDataTypeKind.UINT32,
         ),
         description="Underlying primitive type used for enum storage",
@@ -158,7 +151,7 @@ class EnumDataType(DataTypeModel):
 class EnumValue(BaseModel):
     """Definition of a single enum literal with optional numeric value."""
 
-    name: BaseIdentifier = Field(
+    name: Identifier = Field(
         description="Name of the enum literal",
     )
     value: int | None = Field(
@@ -178,10 +171,10 @@ class EnumValue(BaseModel):
 class DataTypeField(BaseModel):
     """Definition of a single field in a struct or union data type definition."""
 
-    name: BaseIdentifier = Field(
+    name: Identifier = Field(
         description="Field name as declared in the source data type definition",
     )
-    data_type: BaseQualifiedName | DataTypeDefinition = Field(
+    data_type: QualifiedName | DataTypeDefinition = Field(
         description="Field data type definition; may temporarily be an unresolved reference during model resolution",
     )
     description: str = Field(
@@ -210,7 +203,7 @@ class StructDataType(DataTypeModel):
     """Definition of a struct data type with named fields."""
 
     kind: Literal[DataTypeKind.STRUCT] = DataTypeKind.STRUCT
-    extends: BaseQualifiedName | StructDataType | None = None
+    extends: QualifiedName | StructDataType | None = None
     fields: list[DataTypeField] = Field(default_factory=list)
 
 
@@ -218,7 +211,7 @@ class UnionDataType(DataTypeModel):
     """Definition of a union data type with mutually exclusive variants."""
 
     kind: Literal[DataTypeKind.UNION] = DataTypeKind.UNION
-    extends: BaseQualifiedName | UnionDataType | None = None
+    extends: QualifiedName | UnionDataType | None = None
     fields: list[DataTypeField] = Field(
         default_factory=list,
         description="Mutually exclusive variants (Franca union members / protobuf oneof cases)",
@@ -229,11 +222,11 @@ class ArrayDataType(DataTypeModel):
     """Definition of an array data type with element type and optional dimensions."""
 
     kind: Literal[DataTypeKind.ARRAY] = DataTypeKind.ARRAY
-    name: BaseIdentifier | None = Field(
+    name: Identifier | None = Field(
         default=None,
         description="Name of a named array definition; absent for inline arrays",
     )
-    data_type: BaseQualifiedName | DataTypeDefinition = Field(
+    data_type: QualifiedName | DataTypeDefinition = Field(
         description="Array element type definition; may temporarily be an unresolved reference during model resolution",
     )
     is_inline: bool = False
@@ -268,10 +261,10 @@ class MapDataType(DataTypeModel):
     """Definition of a map data type with key and value types."""
 
     kind: Literal[DataTypeKind.MAP] = DataTypeKind.MAP
-    map_from: BaseQualifiedName | DataTypeDefinition = Field(
+    map_from: QualifiedName | DataTypeDefinition = Field(
         description="Map key type definition; may temporarily be an unresolved reference during model resolution",
     )
-    map_to: BaseQualifiedName | DataTypeDefinition = Field(
+    map_to: QualifiedName | DataTypeDefinition = Field(
         description="Map value type definition; may temporarily be an unresolved reference during model resolution",
     )
 
@@ -280,7 +273,7 @@ class TypedefDataType(DataTypeModel):
     """Definition of a typedef data type pointing to another data type."""
 
     kind: Literal[DataTypeKind.TYPEDEF] = DataTypeKind.TYPEDEF
-    data_type: BaseQualifiedName | DataTypeDefinition = Field(
+    data_type: QualifiedName | DataTypeDefinition = Field(
         description="Aliased type definition; may temporarily be an unresolved reference during model resolution",
     )
 

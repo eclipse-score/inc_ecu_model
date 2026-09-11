@@ -13,10 +13,7 @@
 
 """Shared qualified-name matching utilities for Franca resolvers."""
 
-from score.ecu_model.common.franca_name_types import (
-    FullyQualifiedName,
-    ValidIdentifier,
-)
+from score.ecu_model.common.common_name_types import Identifier, QualifiedName
 
 
 def expand_fqn_candidates(base_parts: tuple[str, ...], reference_parts: tuple[str, ...]) -> tuple[str, ...]:
@@ -31,8 +28,8 @@ def expand_fqn_candidates(base_parts: tuple[str, ...], reference_parts: tuple[st
 
 
 def is_namespace_visible(
-    definition_namespace: FullyQualifiedName | None,
-    imported_namespace: FullyQualifiedName | None,
+    definition_namespace: QualifiedName | None,
+    imported_namespace: QualifiedName | None,
 ) -> bool:
     """Return whether an import namespace exposes a definition namespace."""
     if imported_namespace is None or definition_namespace is None:
@@ -41,10 +38,10 @@ def is_namespace_visible(
 
 
 def matches_named_element_reference(
-    reference: FullyQualifiedName,
-    element_name: FullyQualifiedName | ValidIdentifier,
-    definition_namespace: FullyQualifiedName | None,
-    imported_namespace: FullyQualifiedName | None = None,
+    reference: QualifiedName,
+    element_name: QualifiedName | Identifier,
+    definition_namespace: QualifiedName | None,
+    imported_namespace: QualifiedName | None = None,
 ) -> bool:
     """Match a reference to a namespace-qualified named Franca element."""
     if not is_namespace_visible(definition_namespace, imported_namespace):
@@ -58,10 +55,10 @@ def matches_named_element_reference(
 
 
 def matches_use_definition_reference(
-    use_reference: FullyQualifiedName,
-    definition_name: FullyQualifiedName,
-    definition_namespace: FullyQualifiedName | None,
-    imported_namespace: FullyQualifiedName | None = None,
+    use_reference: QualifiedName,
+    definition_name: QualifiedName,
+    definition_namespace: QualifiedName | None,
+    imported_namespace: QualifiedName | None = None,
 ) -> bool:
     """Match fd_tc/fd_interface. Special handling reason: name after 'as' is fd_fqn, not fd_valid_id"""
     if not is_namespace_visible(definition_namespace, imported_namespace):
@@ -80,13 +77,13 @@ def matches_use_definition_reference(
     )
 
 
-def _parts(qualified_name: FullyQualifiedName) -> tuple[str, ...]:
+def _parts(qualified_name: QualifiedName) -> tuple[str, ...]:
     """Return identifier text for qualified-name matching."""
     return tuple(name.as_str for name in qualified_name.names)
 
 
-def _name_parts(name: FullyQualifiedName | ValidIdentifier) -> tuple[str, ...]:
+def _name_parts(name: QualifiedName | Identifier) -> tuple[str, ...]:
     """Return identifier text for a Franca name of either supported shape."""
-    if isinstance(name, ValidIdentifier):
+    if isinstance(name, Identifier):
         return (name.as_str,)
     return _parts(name)

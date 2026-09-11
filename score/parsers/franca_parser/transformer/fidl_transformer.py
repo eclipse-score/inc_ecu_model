@@ -17,10 +17,7 @@ from collections.abc import Callable
 
 from lark import Token, v_args
 
-from score.ecu_model.common.franca_name_types import (
-    FullyQualifiedName,
-    ValidIdentifier,
-)
+from score.ecu_model.common.common_name_types import Identifier, QualifiedName
 from score.ecu_model.data_types.data_type_definition import (
     ArrayDataType,
     DataTypeDefinition,
@@ -103,20 +100,20 @@ class FIDLTransformer(FrancaFileTransformer):
     def _primitive_datatype(name: str) -> PrimitiveDataType:
         """Build an Orion builtin model while preserving the Franca spelling."""
         return PrimitiveDataType(
-            name=ValidIdentifier(name),
+            name=Identifier(name),
             primitive=PRIMITIVE_KINDS[name],
         )
 
     @staticmethod
     def _declaration_namespace(
-        package: FullyQualifiedName,
+        package: QualifiedName,
         collection: TypeCollection,
-    ) -> FullyQualifiedName:
+    ) -> QualifiedName:
         """Return the namespace of declarations owned by one type collection."""
         names = list(package.names)
         if collection.name is not None:
             names.append(collection.name)
-        return FullyQualifiedName(names=names)
+        return QualifiedName(names=names)
 
     @classmethod
     def _apply_declaration_metadata(cls, file_model: FIDLFileModel) -> None:
@@ -176,7 +173,7 @@ class FIDLTransformer(FrancaFileTransformer):
         reference: object,
         bind: Callable[[DataTypeDefinition], None],
     ) -> None:
-        if isinstance(reference, FullyQualifiedName):
+        if isinstance(reference, QualifiedName):
             self._pending_datatype_references_by_declaration.setdefault(id(datatype), []).append(
                 PendingDatatypeReference(reference, bind, datatype)
             )
@@ -188,7 +185,7 @@ class FIDLTransformer(FrancaFileTransformer):
         return model_root
 
     @v_args(inline=True)
-    def fi_model_root(self, package: FullyQualifiedName, *elements: object) -> FIDLFileModel:
+    def fi_model_root(self, package: QualifiedName, *elements: object) -> FIDLFileModel:
         """Build the FIDL file model from its transformed type collections."""
         type_collections: list[TypeCollection] = []
         used_valid_ids: set[str] = set()
@@ -226,7 +223,7 @@ class FIDLTransformer(FrancaFileTransformer):
         """Collect datatype declarations owned by one FIDL type collection."""
         collection = TypeCollection(name=None)
         for element in elements:
-            if isinstance(element, ValidIdentifier):
+            if isinstance(element, Identifier):
                 collection.name = element
             elif isinstance(element, DataTypeModel):
                 collection.datatypes.append(element)
@@ -252,7 +249,7 @@ class FIDLTransformer(FrancaFileTransformer):
         return data_type
 
     @v_args(inline=True)
-    def imported(self, reference: FullyQualifiedName) -> FullyQualifiedName | DataTypeDefinition:
+    def imported(self, reference: QualifiedName) -> QualifiedName | DataTypeDefinition:
         """Resolve a reference from already transformed imports when possible."""
         return self._import_resolver.resolve_imports(reference, self._transformation_context) or reference
 
@@ -264,8 +261,8 @@ class FIDLTransformer(FrancaFileTransformer):
     @v_args(inline=True)
     def fi_type_def(self, *elements: object) -> TypedefDataType:
         """Transform a FIDL typedef declaration."""
-        name = next(element for element in elements if isinstance(element, ValidIdentifier))
-        data_type = next(element for element in elements if isinstance(element, (FullyQualifiedName, DataTypeModel)))
+        name = next(element for element in elements if isinstance(element, Identifier))
+        data_type = next(element for element in elements if isinstance(element, (QualifiedName, DataTypeModel)))
         datatype = TypedefDataType(name=name, data_type=data_type)
         self._record_datatype_references(datatype)
         return datatype
@@ -273,11 +270,11 @@ class FIDLTransformer(FrancaFileTransformer):
     @v_args(inline=True)
     def fi_enumeration_type(self, *elements: object) -> EnumDataType:
         """Transform a FIDL enum declaration and its implicit values."""
-        name = next(element for element in elements if isinstance(element, ValidIdentifier))
+        name = next(element for element in elements if isinstance(element, Identifier))
         enum = EnumDataType(name=name)
         next_value = 0
         for element in elements:
-            if isinstance(element, (FullyQualifiedName, DataTypeModel)):
+            if isinstance(element, (QualifiedName, DataTypeModel)):
                 enum.extends = element
             elif isinstance(element, EnumValue):
                 if element.value is None:
@@ -291,7 +288,7 @@ class FIDLTransformer(FrancaFileTransformer):
     @v_args(inline=True)
     def fi_enumerator(*elements: object) -> EnumValue:
         """Transform one FIDL enum literal."""
-        name = next(element for element in elements if isinstance(element, ValidIdentifier))
+        name = next(element for element in elements if isinstance(element, Identifier))
         is_negative = any(isinstance(element, Token) and str(element) == "-" for element in elements)
         value = next((element for element in elements if isinstance(element, int)), None)
         if is_negative and value is not None:
@@ -302,9 +299,9 @@ class FIDLTransformer(FrancaFileTransformer):
     def fi_struct_type(self, *elements: object) -> StructDataType:
         """Transform a FIDL struct declaration."""
         datatype = StructDataType(
-            name=next(element for element in elements if isinstance(element, ValidIdentifier)),
+            name=next(element for element in elements if isinstance(element, Identifier)),
             extends=next(
-                (element for element in elements if isinstance(element, (FullyQualifiedName, DataTypeModel))),
+                (element for element in elements if isinstance(element, (QualifiedName, DataTypeModel))),
                 None,
             ),
             fields=[element for element in elements if isinstance(element, DataTypeField)],
@@ -316,9 +313,9 @@ class FIDLTransformer(FrancaFileTransformer):
     def fi_union_type(self, *elements: object) -> UnionDataType:
         """Transform a FIDL union declaration."""
         datatype = UnionDataType(
-            name=next(element for element in elements if isinstance(element, ValidIdentifier)),
+            name=next(element for element in elements if isinstance(element, Identifier)),
             extends=next(
-                (element for element in elements if isinstance(element, (FullyQualifiedName, DataTypeModel))),
+                (element for element in elements if isinstance(element, (QualifiedName, DataTypeModel))),
                 None,
             ),
             fields=[element for element in elements if isinstance(element, DataTypeField)],
@@ -329,8 +326,8 @@ class FIDLTransformer(FrancaFileTransformer):
     @v_args(inline=True)
     def fi_array_type(self, *elements: object) -> ArrayDataType:
         """Transform a named FIDL array declaration."""
-        name = next(element for element in elements if isinstance(element, ValidIdentifier))
-        data_type = next(element for element in elements if isinstance(element, (FullyQualifiedName, DataTypeModel)))
+        name = next(element for element in elements if isinstance(element, Identifier))
+        data_type = next(element for element in elements if isinstance(element, (QualifiedName, DataTypeModel)))
         dimensions = next((element for element in elements if isinstance(element, tuple)), None)
         dimension_min, dimension_max = dimensions if dimensions is not None else (None, None)
         datatype = ArrayDataType(
@@ -345,8 +342,8 @@ class FIDLTransformer(FrancaFileTransformer):
     @v_args(inline=True)
     def fi_map_type(self, *elements: object) -> MapDataType:
         """Transform a FIDL map declaration."""
-        name = next(element for element in elements if isinstance(element, ValidIdentifier))
-        data_types = [element for element in elements if isinstance(element, (FullyQualifiedName, DataTypeModel))]
+        name = next(element for element in elements if isinstance(element, Identifier))
+        data_types = [element for element in elements if isinstance(element, (QualifiedName, DataTypeModel))]
         map_from, map_to = data_types
         datatype = MapDataType(name=name, map_from=map_from, map_to=map_to)
         self._record_datatype_references(datatype)
@@ -385,7 +382,7 @@ class FIDLTransformer(FrancaFileTransformer):
     @v_args(inline=True)
     def fi_element_declaration(self, data_type: object, *elements: object) -> DataTypeField:
         """Transform a FIDL struct or union field declaration."""
-        field_name = next(element for element in elements if isinstance(element, ValidIdentifier))
+        field_name = next(element for element in elements if isinstance(element, Identifier))
         dimensions = next((element for element in elements if isinstance(element, tuple)), None)
         if dimensions is not None:
             dimension_min, dimension_max = dimensions

@@ -15,12 +15,12 @@
 
 from dataclasses import dataclass, field
 
-from score.ecu_model.common.franca_name_types import ValidIdentifier
+from score.ecu_model.common.common_name_types import Identifier
 
 
 @dataclass
 class TypeCollection:
     """FIDL type collection and the datatypes it declares."""
 
-    name: ValidIdentifier | None
+    name: Identifier | None
     datatypes: list[object] = field(default_factory=list)

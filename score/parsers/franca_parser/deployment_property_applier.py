@@ -15,9 +15,7 @@
 
 import logging
 
-from score.ecu_model.common.franca_name_types import (
-    ValidIdentifier,
-)
+from score.ecu_model.common.common_name_types import Identifier
 from score.ecu_model.data_types.data_type_definition import (
     DataTypeField,
     DataTypeModel,
@@ -170,7 +168,7 @@ class DeploymentPropertyApplier:
         if property_type is DeploymentPropertyType.BOOLEAN:
             return isinstance(value, bool)
         if property_type is DeploymentPropertyType.ENUM:
-            return isinstance(value, ValidIdentifier) and value in declaration.type_reference.enumerators
+            return isinstance(value, Identifier) and value in declaration.type_reference.enumerators
         return True
 
     @staticmethod
@@ -178,7 +176,7 @@ class DeploymentPropertyApplier:
         if isinstance(value, list):
             return [DeploymentPropertyApplier._normalize_value(item, declaration) for item in value]
         if declaration.type_reference.property_type is DeploymentPropertyType.ENUM and isinstance(
-            value, ValidIdentifier
+            value, Identifier
         ):
             return value.as_str
         return value

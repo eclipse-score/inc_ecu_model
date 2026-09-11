@@ -18,7 +18,7 @@ from pathlib import Path
 
 from lark import v_args
 
-from score.ecu_model.common.franca_name_types import FullyQualifiedName
+from score.ecu_model.common.common_name_types import QualifiedName
 from score.parsers.franca_parser.model.franca_file import (
     ImportedNamespace,
 )
@@ -36,9 +36,9 @@ class FrancaImportTransformer(FrancaFileTransformer):
         self.imported_namespaces: list[ImportedNamespace] = []
 
     @v_args(inline=True)
-    def f_imports(self, *elements: FullyQualifiedName | str) -> None:
+    def f_imports(self, *elements: QualifiedName | str) -> None:
         """Store one import declaration when it includes a source URI."""
-        namespace = next((element for element in elements if isinstance(element, FullyQualifiedName)), None)
+        namespace = next((element for element in elements if isinstance(element, QualifiedName)), None)
         import_uri = next((element for element in elements if isinstance(element, str)), None)
         if import_uri is not None:
             self.imported_namespaces.append(

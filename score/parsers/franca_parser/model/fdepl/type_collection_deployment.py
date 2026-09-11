@@ -22,9 +22,7 @@ from score.parsers.franca_parser.model.fdepl.definition import (
     DeploymentElement,
     DeploymentParameter,
 )
-from score.ecu_model.common.franca_name_types import (
-    FullyQualifiedName,
-)
+from score.ecu_model.common.common_name_types import QualifiedName
 from score.parsers.franca_parser.model.fidl.type_collection import (
     TypeCollection,
 )
@@ -121,6 +119,6 @@ TypeCollectionDatatypeDeployment = (
 class TypeCollectionDeployment(DeploymentDefinition):
     """Deployment definition targeting a FIDL type collection."""
 
-    target: TypeCollection | FullyQualifiedName | None = None
+    target: TypeCollection | QualifiedName | None = None
     version_major: int | None = None
     deployment_elements: list[TypeCollectionDatatypeDeployment] = field(default_factory=list)

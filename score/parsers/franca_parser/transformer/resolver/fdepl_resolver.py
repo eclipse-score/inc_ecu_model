@@ -17,9 +17,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from score.ecu_model.common.franca_name_types import (
-    FullyQualifiedName,
-)
+from score.ecu_model.common.common_name_types import QualifiedName
 from score.parsers.franca_parser.model.fdepl.fdepl_file import (
     FDEPLFileModel,
 )
@@ -52,7 +50,7 @@ from score.parsers.franca_parser.transformer.resolver.utils_resolver import (
 class PendingUseDefinition:
     """An unresolved use reference in one type-collection deployment."""
 
-    reference: FullyQualifiedName
+    reference: QualifiedName
     deployment: TypeCollectionDeployment
     index: int
     owning_file: FDEPLFileModel
@@ -67,7 +65,7 @@ class FDEPLResolver:
 
     def resolve_base_specification(
         self,
-        reference: FullyQualifiedName,
+        reference: QualifiedName,
         owning_file: FDEPLFileModel,
     ) -> DeploymentSpecification:
         """Resolve a specification declared locally or in transformed FDEPL imports."""
@@ -79,7 +77,7 @@ class FDEPLResolver:
                 continue
             namespace_length = 0 if imported_file.namespace is None else len(imported_file.namespace.names)
             local_specification_name = (
-                reference if len(reference.names) == 1 else FullyQualifiedName(names=reference.names[namespace_length:])
+                reference if len(reference.names) == 1 else QualifiedName(names=reference.names[namespace_length:])
             )
             for imported_specification in imported_file.specifications:
                 if imported_specification.name == local_specification_name:
@@ -90,7 +88,7 @@ class FDEPLResolver:
 
     def resolve_type_collection(
         self,
-        reference: FullyQualifiedName,
+        reference: QualifiedName,
         owning_file: FDEPLFileModel,
     ) -> TypeCollection:
         """Resolve one imported FIDL type collection or raise a contextual error."""
@@ -128,7 +126,7 @@ class FDEPLResolver:
 
     def _resolve_use_definition(
         self,
-        reference: FullyQualifiedName,
+        reference: QualifiedName,
         owning_file: FDEPLFileModel,
     ) -> TypeCollectionDeployment | None:
         """Resolve a local or transformed-import use reference when visible."""
@@ -174,7 +172,7 @@ class FDEPLResolver:
         pending_references: list[PendingUseDefinition] = []
         resolver = FDEPLResolver({**self._files, owning_file.file_path: owning_file})
         for index, reference in enumerate(deployment.use_definitions):
-            if not isinstance(reference, FullyQualifiedName):
+            if not isinstance(reference, QualifiedName):
                 continue
             resolved = resolver._resolve_use_definition(reference, owning_file)
             if resolved is None:

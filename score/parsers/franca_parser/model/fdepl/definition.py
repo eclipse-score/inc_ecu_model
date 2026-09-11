@@ -17,10 +17,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from score.ecu_model.common.franca_name_types import (
-    FullyQualifiedName,
-    ValidIdentifier,
-)
+from score.ecu_model.common.common_name_types import Identifier, QualifiedName
 from score.parsers.franca_parser.model.fdepl.specification import (
     DeploymentSpecification,
 )
@@ -30,7 +27,7 @@ from score.parsers.franca_parser.model.fdepl.specification import (
 class DeploymentParameter:
     """A deployment-property assignment."""
 
-    name: ValidIdentifier
+    name: Identifier
     value: object | None = None
 
 
@@ -46,9 +43,9 @@ class DeploymentElement:
 class DeploymentDefinition:
     """Base deployment definition with a specification and design target."""
 
-    specification: FullyQualifiedName | DeploymentSpecification | None = None
+    specification: QualifiedName | DeploymentSpecification | None = None
     target: object | None = None
-    name: FullyQualifiedName | None = None
-    use_definitions: list[FullyQualifiedName | "DeploymentDefinition"] = field(default_factory=list)
+    name: QualifiedName | None = None
+    use_definitions: list[QualifiedName | "DeploymentDefinition"] = field(default_factory=list)
     parameter_set: list[DeploymentParameter] = field(default_factory=list)
     deployment_elements: list[DeploymentElement] = field(default_factory=list)
