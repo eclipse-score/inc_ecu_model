@@ -49,6 +49,9 @@ class EnumValue(ModelElement):
             raise ValueError("enum value must be an integer, not boolean")
         return value
 
+    def finalize(self) -> None:
+        raise NotImplementedError("finalize method must be implemented by subclasses")
+
 
 class EnumDataType(DataTypeBase):
     """A declared enum data type with named literals."""
