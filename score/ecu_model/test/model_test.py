@@ -18,6 +18,7 @@ from uuid import UUID, uuid4
 from pydantic import ValidationError
 
 from score.ecu_model.model import ModelElement, ModelRegistry
+from score.ecu_model.data_types.enum import EnumValue
 
 
 class TestModelRegistry(unittest.TestCase):
@@ -75,7 +76,11 @@ class TestSerialization(unittest.TestCase):
         ModelRegistry.elements.update(self._saved_registry)
 
     def test_round_trip_restores_all_elements(self) -> None:
-        elements = [ModelElement(description="first"), ModelElement(description="second")]
+        elements = [
+            ModelElement(description="first"),
+            ModelElement(description="second"),
+            EnumValue(description="third"),
+        ]
         blob = ModelRegistry.serialize()
         ModelRegistry.elements.clear()
 
