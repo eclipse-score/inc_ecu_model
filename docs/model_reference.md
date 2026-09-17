@@ -24,6 +24,8 @@ Inheritance (`<|--`) and references between the documented types; members are om
 
 ```mermaid
 classDiagram
+    ModelElement <|-- InterfaceDesign
+    ModelElement <|-- Interface
     DataTypeBase <|-- ArrayDataType
     ModelElement <|-- DataTypeBase
     ModelElement <|-- DataTypeField
@@ -36,6 +38,26 @@ classDiagram
     DataTypeBase <|-- TypedefDataType
     CompositeDataType <|-- UnionDataType
     ModelRegistry <|-- ModelElement
+    Broadcast --> Identifier : name
+    Broadcast --> DataTypeField : outputs
+    Attribute --> Identifier : name, data_type
+    Attribute --> QualifiedName : data_type
+    Method --> Identifier : name, error_enum
+    Method --> DataTypeField : inputs, outputs
+    Method --> EnumDataType : errors
+    Method --> QualifiedName : error_enum
+    InterfaceDesign --> Identifier : name, broadcasts, attributes, methods
+    InterfaceDesign --> QualifiedName : namespace
+    InterfaceDesign --> Version : version
+    InterfaceDesign --> Broadcast : broadcasts
+    InterfaceDesign --> Attribute : attributes
+    InterfaceDesign --> Method : methods
+    Interface --> Identifier : name, broadcast_bindings, attribute_bindings, method_bindings
+    Interface --> QualifiedName : namespace
+    Interface --> InterfaceDesign : design_element
+    Interface --> BroadcastBinding : broadcast_bindings
+    Interface --> AttributeBinding : attribute_bindings
+    Interface --> MethodBinding : method_bindings
     ArrayDataType --> DataTypeBase : data_type
     ArrayDataType --> Identifier : data_type
     ArrayDataType --> PrimitiveDataType : data_type
@@ -68,6 +90,177 @@ classDiagram
     TypedefDataType --> PrimitiveDataType : data_type
     TypedefDataType --> QualifiedName : data_type
 ```
+
+## `score.ecu_model.common.version`
+
+### `Version`
+
+Inherits from `BaseModel`.
+
+Semantic version shared by ECU model objects.
+
+**Fields**
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `major` | `int` | `1` |  |
+| `minor` | `int` | `0` |  |
+| `patch` | `int` | `0` |  |
+
+**Validators**
+
+| Validator | Kind | Applies to | Description |
+| --- | --- | --- | --- |
+| `_validate_decimal_integer` | field, before | `major`, `minor`, `patch` | Validates `major`, `minor`, `patch`. |
+| `_validate_all_or_none_provided` | model, before | _the whole model_ | Validates the model as a whole. |
+| `_validate_at_least_one_non_zero` | model, after | _the whole model_ | Validates the model as a whole. |
+
+#### `__gt__(self, other)`
+
+_method_
+
+Return a > b.  Computed by @total_ordering from (not a < b) and (a != b).
+
+#### `__le__(self, other)`
+
+_method_
+
+Return a <= b.  Computed by @total_ordering from (a < b) or (a == b).
+
+#### `__ge__(self, other)`
+
+_method_
+
+Return a >= b.  Computed by @total_ordering from (not a < b).
+
+## `score.ecu_model.communication.service_interface.interface`
+
+### `Broadcast`
+
+Inherits from `BaseModel`.
+
+Named service broadcast carrying zero or more output data types.
+
+**Fields**
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `name` | [`Identifier`](#identifier) | _required_ |  |
+| `outputs` | list[[`DataTypeField`](#datatypefield)] | `list()` |  |
+
+### `Attribute`
+
+Inherits from `BaseModel`.
+
+Named service attribute with Franca access qualifiers.
+
+**Fields**
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `name` | [`Identifier`](#identifier) | _required_ |  |
+| `data_type` | [`Identifier`](#identifier) \| [`QualifiedName`](#qualifiedname) | _required_ |  |
+| `access_q_readonly` | `bool` | `False` |  |
+| `access_q_noread` | `bool` | `False` |  |
+| `access_q_nosubscriptions` | `bool` | `False` |  |
+
+### `Method`
+
+Inherits from `BaseModel`.
+
+Named service method with input, output, and error definitions.
+
+**Fields**
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `name` | [`Identifier`](#identifier) | _required_ |  |
+| `inputs` | list[[`DataTypeField`](#datatypefield)] | `list()` |  |
+| `outputs` | list[[`DataTypeField`](#datatypefield)] | `list()` |  |
+| `errors` | [`EnumDataType`](#enumdatatype) \| None | `None` |  |
+| `error_enum` | [`Identifier`](#identifier) \| [`QualifiedName`](#qualifiedname) \| None | `None` |  |
+| `fire_and_forget` | `bool` | `False` |  |
+
+**Validators**
+
+| Validator | Kind | Applies to | Description |
+| --- | --- | --- | --- |
+| `_validate_single_error_definition` | model, after | _the whole model_ | Validates the model as a whole. |
+
+### `BroadcastBinding`
+
+Inherits from `_DeploymentBinding`.
+
+Deployment metadata attached to a service broadcast.
+
+### `AttributeBinding`
+
+Inherits from `_DeploymentBinding`.
+
+Deployment metadata attached to a service attribute.
+
+### `MethodBinding`
+
+Inherits from `_DeploymentBinding`.
+
+Deployment metadata attached to a service method.
+
+### `InterfaceDesign`
+
+Inherits from [`ModelElement`](#modelelement).
+
+Reusable design-time declaration of an interface.
+
+**Fields**
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `name` | [`Identifier`](#identifier) | _required_ |  |
+| `namespace` | [`QualifiedName`](#qualifiedname) | `QualifiedName()` |  |
+| `version` | [`Version`](#version) | _required_ |  |
+| `broadcasts` | dict[[`Identifier`](#identifier), [`Broadcast`](#broadcast)] | `dict()` |  |
+| `attributes` | dict[[`Identifier`](#identifier), [`Attribute`](#attribute)] | `dict()` |  |
+| `methods` | dict[[`Identifier`](#identifier), [`Method`](#method)] | `dict()` |  |
+
+**Validators**
+
+| Validator | Kind | Applies to | Description |
+| --- | --- | --- | --- |
+| `_coerce_namespace` | model, before | _the whole model_ | Validates the model as a whole. |
+| `_validate_member_keys` | model, after | _the whole model_ | Validates the model as a whole. |
+
+#### `fully_qualified_name`
+
+_property_
+
+Return the dot-separated Franca interface name.
+
+### `Interface`
+
+Inherits from [`ModelElement`](#modelelement).
+
+Deployment metadata for an interface design.
+
+**Fields**
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `name` | [`Identifier`](#identifier) | _required_ |  |
+| `namespace` | [`QualifiedName`](#qualifiedname) | `QualifiedName()` |  |
+| `design_element` | [`InterfaceDesign`](#interfacedesign) | _required_ |  |
+| `service_id` | `int \| None` | `None` |  |
+| `deployment_properties` | `dict[str, object]` | `dict()` |  |
+| `broadcast_bindings` | dict[[`Identifier`](#identifier), [`BroadcastBinding`](#broadcastbinding)] | `dict()` |  |
+| `attribute_bindings` | dict[[`Identifier`](#identifier), [`AttributeBinding`](#attributebinding)] | `dict()` |  |
+| `method_bindings` | dict[[`Identifier`](#identifier), [`MethodBinding`](#methodbinding)] | `dict()` |  |
+
+**Validators**
+
+| Validator | Kind | Applies to | Description |
+| --- | --- | --- | --- |
+| `_validate_property_names` | field, after | `deployment_properties` | Validates `deployment_properties`. |
+| `_coerce_namespace` | model, before | _the whole model_ | Validates the model as a whole. |
+| `_validate_member_bindings` | model, after | _the whole model_ | Validates the model as a whole. |
 
 ## `score.ecu_model.data_types.array`
 

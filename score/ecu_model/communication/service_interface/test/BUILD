@@ -10,23 +10,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
-load("@rules_python//python:defs.bzl", "py_library")
 
-py_library(
-    name = "ecu_model",
-    srcs = ["model.py"],
-    visibility = ["//visibility:public"],
+load("@rules_python//python:defs.bzl", "py_test")
+
+py_test(
+    name = "interface_test",
+    size = "small",
+    srcs = ["interface_test.py"],
     deps = [
+        "//score/ecu_model",
+        "//score/ecu_model:common",
+        "//score/ecu_model/communication/service_interface",
+        "//score/ecu_model/data_types",
         "@pypi//pydantic",
     ],
-)
-
-py_library(
-    name = "common",
-    srcs = [
-        "common/__init__.py",
-        "common/version.py",
-    ],
-    visibility = ["//visibility:public"],
-    deps = ["@pypi//pydantic"],
 )
