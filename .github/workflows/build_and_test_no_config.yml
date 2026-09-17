@@ -71,16 +71,29 @@ jobs:
         # Coverage flags (instrumentation filter, combined lcov report) live in .bazelrc.
         run: bazel coverage //score/...
 
+      - name: Generate HTML coverage report
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes lcov
+          genhtml bazel-out/_coverage/_coverage_report.dat --output-directory coverage-html
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-coverage-html
+          path: coverage-html
+          if-no-files-found: error
+
       - name: Convert lcov report to Cobertura XML
         # GitHub Code Quality only ingests Cobertura, Bazel only emits lcov.
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         run: bazel run //tools/coverage:lcov_to_cobertura
 
-      - name: Upload coverage report
-        # Forks cannot write to Code Quality, so skip the upload for them.
+      - name: Publish coverage to GitHub Code Quality
+        # Fork PRs cannot write to Code Quality; their report remains available as an artifact.
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/upload-code-coverage@v1
         with:
           file: coverage.xml
           language: Python
           label: code-coverage/bazel
-          fail-on-error: false

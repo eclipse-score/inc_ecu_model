@@ -26,6 +26,7 @@ bazel_dep(name = "rules_go", version = "0.61.1", dev_dependency = True)
 # Toolchains required for development & testing that will not get propagated to our users as transitive dependencies
 python = use_extension("@rules_python//python/extensions:python.bzl", "python", dev_dependency = True)
 python.toolchain(
+    configure_coverage_tool = True,
     python_version = "3.12",
 )
 
