@@ -22,13 +22,3 @@ py_test(
         "@pypi//pydantic",
     ],
 )
-
-py_test(
-    name = "interface_test",
-    size = "small",
-    srcs = ["interface_test.py"],
-    deps = [
-        "//score/ecu_model:interface",
-        "@pypi//pydantic",
-    ],
-)

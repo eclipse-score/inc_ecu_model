@@ -15,7 +15,8 @@ import unittest
 
 from pydantic import ValidationError
 
-from score.ecu_model.interface import (
+from score.ecu_model.common.version import Version
+from score.ecu_model.communication.service_interface.interface import (
     Attribute,
     AttributeBinding,
     Broadcast,
@@ -25,7 +26,6 @@ from score.ecu_model.interface import (
     Method,
     MethodBinding,
 )
-from score.ecu_model.common.version import Version
 from score.ecu_model.model import ModelRegistry
 
 

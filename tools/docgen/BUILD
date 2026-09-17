@@ -19,6 +19,8 @@ py_binary(
     visibility = ["//visibility:public"],
     deps = [
         "//score/ecu_model",
+        "//score/ecu_model:common",
+        "//score/ecu_model/communication/service_interface",
         "//score/ecu_model/data_types",
     ],
 )
@@ -36,6 +38,8 @@ py_test(
     main = "generate_model_docs.py",
     deps = [
         "//score/ecu_model",
+        "//score/ecu_model:common",
+        "//score/ecu_model/communication/service_interface",
         "//score/ecu_model/data_types",
     ],
 )

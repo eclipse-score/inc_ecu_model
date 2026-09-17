@@ -15,11 +15,12 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from score.ecu_model.common.version import Version
+from score.ecu_model.communication.service_interface.detail import _DeploymentBinding
 from score.ecu_model.data_types.common import DataTypeReference
 from score.ecu_model.data_types.composite import DataTypeField
 from score.ecu_model.data_types.enum import EnumDataType
 from score.ecu_model.data_types.identifier import Identifier, QualifiedName
-from score.ecu_model.common.version import Version
 from score.ecu_model.model import ModelElement
 
 
@@ -55,19 +56,6 @@ class Method(BaseModel):
         if self.errors is not None and self.error_enum is not None:
             raise ValueError("method must define either errors or error_enum, not both")
         return self
-
-
-class _DeploymentBinding(BaseModel):
-    """Deployment properties attached to a declared interface member."""
-
-    deployment_properties: dict[str, object] = Field(default_factory=dict)
-
-    @field_validator("deployment_properties")
-    @classmethod
-    def _validate_property_names(cls, value: dict[str, object]) -> dict[str, object]:
-        if any(not key.strip() for key in value):
-            raise ValueError("deployment property names must not be empty")
-        return value
 
 
 class BroadcastBinding(_DeploymentBinding):
