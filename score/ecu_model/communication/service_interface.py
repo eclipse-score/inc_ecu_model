@@ -16,7 +16,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from score.ecu_model.common.version import Version
-from score.ecu_model.communication.service_interface.detail import _DeploymentBinding
+from score.ecu_model.communication.detail.deployment_binding import _DeploymentBinding
 from score.ecu_model.data_types.common import DataTypeOrReference, DataTypeReference
 from score.ecu_model.data_types.composite import DataTypeField
 from score.ecu_model.data_types.enum import EnumDataType
@@ -110,7 +110,7 @@ class InterfaceDefinition(ModelElement):
         return QualifiedName((*self.namespace.names, self.name)).as_str
 
 
-class Interface(ModelElement):
+class ServiceInterface(ModelElement):
     """Concrete deployment of an InterfaceDefinition."""
 
     name: Identifier
@@ -141,7 +141,7 @@ class Interface(ModelElement):
         return value
 
     @model_validator(mode="after")
-    def _validate_member_bindings(self) -> "Interface":
+    def _validate_member_bindings(self) -> "ServiceInterface":
         """
         Validate that all member bindings reference declared members in the interface design element
         and all declared members are covered by bindings.
@@ -152,10 +152,8 @@ class Interface(ModelElement):
             (self.attribute_bindings, self.design_element.attributes, "attribute"),
             (self.method_bindings, self.design_element.methods, "method"),
         ):
-            binding_names = set(bindings)
-            member_names = set(members)
-            if binding_names - member_names:
+            if any(name not in members for name in bindings):
                 raise ValueError(f"interface {kind} bindings must reference declared {kind}s")
-            if member_names - binding_names:
-                raise ValueError(f"interface {kind} bindings must cover all declared {kind}s")
+            if any(name not in bindings for name in members):
+                raise ValueError(f"interface {kind} members must be covered by bindings")
         return self

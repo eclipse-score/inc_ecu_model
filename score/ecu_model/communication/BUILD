@@ -11,16 +11,26 @@
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
 
-load("@rules_python//python:defs.bzl", "py_test")
+load("@rules_python//python:defs.bzl", "py_library")
 
-py_test(
-    name = "interface_test",
-    size = "small",
-    srcs = ["interface_test.py"],
+py_library(
+    name = "communication",
+    srcs = [
+        "__init__.py",
+        "detail/__init__.py",
+        "detail/base_port.py",
+        "detail/deployment_binding.py",
+        "detail/message_port.py",
+        "detail/service_port.py",
+        "message_channel.py",
+        "message_port.py",
+        "service_interface.py",
+        "service_port.py",
+    ],
+    visibility = ["//visibility:public"],
     deps = [
         "//score/ecu_model",
         "//score/ecu_model:common",
-        "//score/ecu_model/communication/service_interface",
         "//score/ecu_model/data_types",
         "@pypi//pydantic",
     ],

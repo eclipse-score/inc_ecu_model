@@ -10,21 +10,3 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
-
-load("@rules_python//python:defs.bzl", "py_library")
-
-py_library(
-    name = "service_interface",
-    srcs = [
-        "__init__.py",
-        "detail.py",
-        "interface.py",
-    ],
-    visibility = ["//visibility:public"],
-    deps = [
-        "//score/ecu_model",
-        "//score/ecu_model:common",
-        "//score/ecu_model/data_types",
-        "@pypi//pydantic",
-    ],
-)

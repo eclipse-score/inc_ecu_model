@@ -24,8 +24,13 @@ Inheritance (`<|--`) and references between the documented types; members are om
 
 ```mermaid
 classDiagram
+    class ProvidedMessagePort
+    class ProvidedServicePort
+    class RequiredMessagePort
+    ModelElement <|-- MessageChannel
     ModelElement <|-- InterfaceDefinition
-    ModelElement <|-- Interface
+    ModelElement <|-- ServiceInterface
+    ModelElement <|-- PortSpecification
     DataTypeBase <|-- ArrayDataType
     ModelElement <|-- DataTypeBase
     ModelElement <|-- DataTypeField
@@ -38,6 +43,10 @@ classDiagram
     DataTypeBase <|-- TypedefDataType
     CompositeDataType <|-- UnionDataType
     ModelRegistry <|-- ModelElement
+    MessageChannel --> Identifier : name, data_type
+    MessageChannel --> DataTypeBase : data_type
+    MessageChannel --> PrimitiveDataType : data_type
+    MessageChannel --> QualifiedName : data_type
     Broadcast --> Identifier : name
     Broadcast --> DataTypeField : outputs
     Attribute --> Identifier : name, data_type
@@ -54,12 +63,14 @@ classDiagram
     InterfaceDefinition --> Broadcast : broadcasts
     InterfaceDefinition --> Attribute : attributes
     InterfaceDefinition --> Method : methods
-    Interface --> Identifier : name, broadcast_bindings, attribute_bindings, method_bindings
-    Interface --> QualifiedName : namespace
-    Interface --> InterfaceDefinition : design_element
-    Interface --> BroadcastBinding : broadcast_bindings
-    Interface --> AttributeBinding : attribute_bindings
-    Interface --> MethodBinding : method_bindings
+    ServiceInterface --> Identifier : name, broadcast_bindings, attribute_bindings, method_bindings
+    ServiceInterface --> QualifiedName : namespace
+    ServiceInterface --> InterfaceDefinition : design_element
+    ServiceInterface --> BroadcastBinding : broadcast_bindings
+    ServiceInterface --> AttributeBinding : attribute_bindings
+    ServiceInterface --> MethodBinding : method_bindings
+    PortSpecification --> InterfaceDefinition : interface_design
+    RequiredServicePort --> PortSpecification : port_spec
     ArrayDataType --> DataTypeBase : data_type
     ArrayDataType --> Identifier : data_type
     ArrayDataType --> PrimitiveDataType : data_type
@@ -135,7 +146,49 @@ _method_
 
 Return a >= b.  Computed by @total_ordering from (not a < b).
 
-## `score.ecu_model.communication.service_interface.interface`
+## `score.ecu_model.communication.message_channel`
+
+### `MessageChannel`
+
+Inherits from [`ModelElement`](#modelelement).
+
+Represents a communication channel for message-oriented ports.
+
+**Fields**
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `name` | [`Identifier`](#identifier) | _required_ | Identifier of the message channel |
+| `data_type` | [`PrimitiveDataType`](#primitivedatatype) \| [`DataTypeBase`](#datatypebase) \| [`Identifier`](#identifier) \| [`QualifiedName`](#qualifiedname) | _required_ | Payload data type carried by this channel |
+| `channel_id` | `int \| None` | `None` | Optional unique identifier for the message channel from the deployment |
+
+## `score.ecu_model.communication.message_port`
+
+### `ProvidedMessagePort`
+
+Inherits from `_MessagePort`.
+
+A message port offered by an application or activity.
+
+**Fields**
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `max_published_messages` | `int` | `1` | Max output queue size |
+
+### `RequiredMessagePort`
+
+Inherits from `_MessagePort`.
+
+A message port consumed by an application or activity.
+
+**Fields**
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `max_required_messages` | `int` | `1` | Max input queue size, window size regarding all messages published by the producer |
+
+## `score.ecu_model.communication.service_interface`
 
 ### `Broadcast`
 
@@ -230,7 +283,7 @@ _property_
 
 Return the dot-separated interface name.
 
-### `Interface`
+### `ServiceInterface`
 
 Inherits from [`ModelElement`](#modelelement).
 
@@ -256,6 +309,44 @@ Concrete deployment of an InterfaceDefinition.
 | `_validate_property_names` | field, after | `deployment_properties` | Validates `deployment_properties`. |
 | `_coerce_namespace` | model, before | _the whole model_ | Allow for specifying the namespace as a simple dot-separated string instead of a QualifiedName object during construction. |
 | `_validate_member_bindings` | model, after | _the whole model_ | Validate that all member bindings reference declared members in the interface design element and all declared members are covered by bindings. Raises a ValueError in case of dangling bindings or interface members. |
+
+## `score.ecu_model.communication.service_port`
+
+### `PortSpecification`
+
+Inherits from [`ModelElement`](#modelelement).
+
+Binding-independent declaration of a service port.
+
+**Fields**
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `interface_design` | [`InterfaceDefinition`](#interfacedefinition) | _required_ | Binding-independent service interface declared by this port |
+
+### `ProvidedServicePort`
+
+Inherits from `_ServicePort`.
+
+A service port offered by an application or activity.
+
+### `RequiredServicePort`
+
+Inherits from `_ServicePort`.
+
+A service port consumed by an application or activity.
+
+**Fields**
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `port_spec` | [`PortSpecification`](#portspecification) \| None | `None` | Binding-independent design declaration represented by this deployed port |
+
+**Validators**
+
+| Validator | Kind | Applies to | Description |
+| --- | --- | --- | --- |
+| `_validate_interface_matches_port_spec` | model, after | _the whole model_ | Validates the model as a whole. |
 
 ## `score.ecu_model.data_types.array`
 
