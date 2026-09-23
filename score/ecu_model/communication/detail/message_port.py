@@ -15,22 +15,30 @@ from __future__ import annotations
 
 from pydantic import Field
 
+from score.ecu_model.common.asil_level import AsilLevel
 from score.ecu_model.communication.detail.base_port import _BasePort
+from score.ecu_model.communication.detail.deployment_binding import _DeploymentBinding
 from score.ecu_model.communication.message_channel import MessageChannel
+
+
+class MessageBinding(_DeploymentBinding):
+    """A binding for message-oriented communication ports."""
 
 
 class _MessagePort(_BasePort):
     """Shared attributes for message-oriented communication ports."""
 
     channel: MessageChannel = Field(..., description="The message channel associated with this port")
-
     debug_only: bool = Field(
         default=False,
         description="Whether this port is a debug-only interface rather than production data",
     )
+    asil: AsilLevel = Field(
+        default=AsilLevel.QM,
+        description="Data integrity level promised by the sender (ISO 26262)",
+    )
+    binding: MessageBinding = Field(..., description="Communication binding / deployment for this port")
 
-    # asil: AsilLevel = Field(default=AsilLevel.QM, description="Data integrity level promised by the sender")
-    # binding: Binding = Field(..., description="Communication binding / deployment for this port")
     def model_post_init(self, context: object, /) -> None:
         """Reject direct instantiation of the abstract base port."""
         if type(self) is _MessagePort:

@@ -13,20 +13,26 @@
 
 from __future__ import annotations
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 
 from score.ecu_model.communication.detail.base_port import _BasePort
-from score.ecu_model.communication.service_interface import ServiceInterface
+from score.ecu_model.communication.message_channel import ModelElement
+from score.ecu_model.communication.service_interface import ServiceInterface, InterfaceDefinition
+
+
+class PortDefinition(ModelElement):
+    """Binding-independent declaration of a service port."""
+
+    interface_design: InterfaceDefinition = Field(
+        ...,
+        description="Binding-independent service interface declared by this port",
+    )
 
 
 class _ServicePort(_BasePort):
     """Communication port that provides or requires a service interface."""
 
     interface: ServiceInterface
-    # design_element: PortDesign | None = Field(
-    #     default=None,
-    #     description="Binding-independent design declaration represented by this deployed port",
-    # )
     instance_id: int | None = Field(
         default=None,
         gt=0,
@@ -34,6 +40,22 @@ class _ServicePort(_BasePort):
         description="Optional positive service instance identifier from the source deployment",
     )
     deployment_properties: dict[str, object] = Field(default_factory=dict)
+
+    """
+    TODO: need to check if design_element is actually needed, for example to select only specific members uf the used service interface etc.
+    """
+    design_element: PortDefinition | None = Field(
+        default=None,
+        description="Binding-independent design declaration represented by this deployed port",
+    )
+
+    @model_validator(mode="after")
+    def _validate_interface_matches_port_spec(self) -> "_BasePort":
+        if self.design_element is not None and self.interface.design_element != self.design_element.interface_design:
+            raise ValueError(
+                "interface design element must match the interface design declared by the port specification"
+            )
+        return self
 
     @field_validator("deployment_properties")
     @classmethod

@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 from pydantic import Field
+from score.ecu_model.data_types.identifier import QualifiedName
 
 from score.ecu_model.data_types.common import DataTypeOrReference
 from score.ecu_model.data_types.identifier import Identifier
@@ -24,6 +25,7 @@ class MessageChannel(ModelElement):
     """Represents a communication channel for message-oriented ports."""
 
     name: Identifier = Field(description="Identifier of the message channel")
+    namespace: QualifiedName = Field(default_factory=QualifiedName, description="Namespace of the message channel")
     data_type: DataTypeOrReference = Field(
         description="Payload data type carried by this channel",
     )

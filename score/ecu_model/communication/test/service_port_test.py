@@ -9,6 +9,7 @@
 # https://www.apache.org/licenses/LICENSE-2.0
 #
 # SPDX-License-Identifier: Apache-2.0
+# *******************************************************************************
 
 import unittest
 
@@ -20,10 +21,10 @@ from score.ecu_model.communication.service_interface import (
     ServiceInterface,
 )
 from score.ecu_model.communication.service_port import (
-    PortSpecification,
     ProvidedServicePort,
     RequiredServicePort,
 )
+from score.ecu_model.communication.detail.service_port import PortDefinition
 from score.ecu_model.model import ModelRegistry
 
 
@@ -60,39 +61,39 @@ class TestServicePort(unittest.TestCase):
 
     def test_port_specification_instantiation_and_registration(self) -> None:
         design = InterfaceDefinition(name="VehicleState", version=Version())
-        port_spec = PortSpecification(
+        design_element = PortDefinition(
             interface_design=design,
             description="Speed port specification",
         )
 
-        self.assertIs(port_spec.interface_design, design)
-        self.assertEqual(port_spec.description, "Speed port specification")
-        self.assertIs(ModelRegistry.elements[port_spec.id], port_spec)
+        self.assertIs(design_element.interface_design, design)
+        self.assertEqual(design_element.description, "Speed port specification")
+        self.assertIs(ModelRegistry.elements[design_element.id], design_element)
 
     def test_required_port_with_matching_port_spec_succeeds(self) -> None:
         design = InterfaceDefinition(name="VehicleState", version=Version())
         service_interface = self._service_interface(design_element=design)
-        port_spec = PortSpecification(interface_design=design)
+        design_element = PortDefinition(interface_design=design)
 
         port = RequiredServicePort(
             name="VehicleStateConsumer",
             interface=service_interface,
-            port_spec=port_spec,
+            design_element=design_element,
         )
 
-        self.assertIs(port.port_spec, port_spec)
+        self.assertIs(port.design_element, design_element)
 
     def test_required_port_with_mismatched_port_spec_raises(self) -> None:
         design_a = InterfaceDefinition(name="VehicleStateA", version=Version())
         design_b = InterfaceDefinition(name="VehicleStateB", version=Version())
         service_interface = self._service_interface(design_element=design_a)
-        port_spec = PortSpecification(interface_design=design_b)
+        design_element = PortDefinition(interface_design=design_b)
 
         with self.assertRaises(ValidationError):
             RequiredServicePort(
                 name="VehicleStateConsumer",
                 interface=service_interface,
-                port_spec=port_spec,
+                design_element=design_element,
             )
 
     def test_instance_id_must_be_positive_integer(self) -> None:

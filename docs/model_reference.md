@@ -24,13 +24,16 @@ Inheritance (`<|--`) and references between the documented types; members are om
 
 ```mermaid
 classDiagram
+    class AsilLevel
+    class MessageBinding
     class ProvidedMessagePort
     class ProvidedServicePort
     class RequiredMessagePort
+    class RequiredServicePort
+    ModelElement <|-- PortDefinition
     ModelElement <|-- MessageChannel
     ModelElement <|-- InterfaceDefinition
     ModelElement <|-- ServiceInterface
-    ModelElement <|-- PortSpecification
     DataTypeBase <|-- ArrayDataType
     ModelElement <|-- DataTypeBase
     ModelElement <|-- DataTypeField
@@ -43,10 +46,11 @@ classDiagram
     DataTypeBase <|-- TypedefDataType
     CompositeDataType <|-- UnionDataType
     ModelRegistry <|-- ModelElement
+    PortDefinition --> InterfaceDefinition : interface_design
     MessageChannel --> Identifier : name, data_type
+    MessageChannel --> QualifiedName : namespace, data_type
     MessageChannel --> DataTypeBase : data_type
     MessageChannel --> PrimitiveDataType : data_type
-    MessageChannel --> QualifiedName : data_type
     Broadcast --> Identifier : name
     Broadcast --> DataTypeField : outputs
     Attribute --> Identifier : name, data_type
@@ -69,8 +73,6 @@ classDiagram
     ServiceInterface --> BroadcastBinding : broadcast_bindings
     ServiceInterface --> AttributeBinding : attribute_bindings
     ServiceInterface --> MethodBinding : method_bindings
-    PortSpecification --> InterfaceDefinition : interface_design
-    RequiredServicePort --> PortSpecification : port_spec
     ArrayDataType --> DataTypeBase : data_type
     ArrayDataType --> Identifier : data_type
     ArrayDataType --> PrimitiveDataType : data_type
@@ -103,6 +105,24 @@ classDiagram
     TypedefDataType --> PrimitiveDataType : data_type
     TypedefDataType --> QualifiedName : data_type
 ```
+
+## `score.ecu_model.common.asil_level`
+
+### `AsilLevel`
+
+Inherits from `str`, `Enum`.
+
+ISO 26262 Automotive Safety Integrity Level.
+
+**Members**
+
+| Member | Value |
+| --- | --- |
+| `QM` | `'QM'` |
+| `A` | `'ASIL-A'` |
+| `B` | `'ASIL-B'` |
+| `C` | `'ASIL-C'` |
+| `D` | `'ASIL-D'` |
 
 ## `score.ecu_model.common.version`
 
@@ -146,6 +166,28 @@ _method_
 
 Return a >= b.  Computed by @total_ordering from (not a < b).
 
+## `score.ecu_model.communication.detail.message_port`
+
+### `MessageBinding`
+
+Inherits from `_DeploymentBinding`.
+
+A binding for message-oriented communication ports.
+
+## `score.ecu_model.communication.detail.service_port`
+
+### `PortDefinition`
+
+Inherits from [`ModelElement`](#modelelement).
+
+Binding-independent declaration of a service port.
+
+**Fields**
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `interface_design` | [`InterfaceDefinition`](#interfacedefinition) | _required_ | Binding-independent service interface declared by this port |
+
 ## `score.ecu_model.communication.message_channel`
 
 ### `MessageChannel`
@@ -159,6 +201,7 @@ Represents a communication channel for message-oriented ports.
 | Field | Type | Default | Description |
 | --- | --- | --- | --- |
 | `name` | [`Identifier`](#identifier) | _required_ | Identifier of the message channel |
+| `namespace` | [`QualifiedName`](#qualifiedname) | `QualifiedName()` | Namespace of the message channel |
 | `data_type` | [`PrimitiveDataType`](#primitivedatatype) \| [`DataTypeBase`](#datatypebase) \| [`Identifier`](#identifier) \| [`QualifiedName`](#qualifiedname) | _required_ | Payload data type carried by this channel |
 | `channel_id` | `int \| None` | `None` | Optional unique identifier for the message channel from the deployment |
 
@@ -312,18 +355,6 @@ Concrete deployment of an InterfaceDefinition.
 
 ## `score.ecu_model.communication.service_port`
 
-### `PortSpecification`
-
-Inherits from [`ModelElement`](#modelelement).
-
-Binding-independent declaration of a service port.
-
-**Fields**
-
-| Field | Type | Default | Description |
-| --- | --- | --- | --- |
-| `interface_design` | [`InterfaceDefinition`](#interfacedefinition) | _required_ | Binding-independent service interface declared by this port |
-
 ### `ProvidedServicePort`
 
 Inherits from `_ServicePort`.
@@ -335,18 +366,6 @@ A service port offered by an application or activity.
 Inherits from `_ServicePort`.
 
 A service port consumed by an application or activity.
-
-**Fields**
-
-| Field | Type | Default | Description |
-| --- | --- | --- | --- |
-| `port_spec` | [`PortSpecification`](#portspecification) \| None | `None` | Binding-independent design declaration represented by this deployed port |
-
-**Validators**
-
-| Validator | Kind | Applies to | Description |
-| --- | --- | --- | --- |
-| `_validate_interface_matches_port_spec` | model, after | _the whole model_ | Validates the model as a whole. |
 
 ## `score.ecu_model.data_types.array`
 

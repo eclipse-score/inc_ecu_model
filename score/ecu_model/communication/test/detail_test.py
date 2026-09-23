@@ -15,7 +15,7 @@ import unittest
 
 from score.ecu_model.common.version import Version
 from score.ecu_model.communication.detail.base_port import _BasePort
-from score.ecu_model.communication.detail.message_port import _MessagePort
+from score.ecu_model.communication.detail.message_port import MessageBinding, _MessagePort
 from score.ecu_model.communication.detail.service_port import _ServicePort
 from score.ecu_model.communication.message_channel import MessageChannel
 from score.ecu_model.communication.service_interface import InterfaceDefinition, ServiceInterface
@@ -62,8 +62,9 @@ class TestBasePort(unittest.TestCase):
 
     def test_message_port_is_abstract(self) -> None:
         channel = MessageChannel(name="SpeedChannel", data_type="SpeedData")
+        binding = MessageBinding(deployment_properties={"topic": "speed"})
         with self.assertRaises(TypeError):
-            _MessagePort(name="SpeedPort", channel=channel)
+            _MessagePort(name="SpeedPort", channel=channel, binding=binding)
 
 
 if __name__ == "__main__":
