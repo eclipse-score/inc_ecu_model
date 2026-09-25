@@ -59,6 +59,8 @@ class ModelRegistry(BaseModel):
         """
         Pickle the whole registry, i.e. every registered ModelElement.
         """
+        for element in ModelRegistry.elements.values():
+            element.finalize()
         return pickle.dumps(ModelRegistry.elements, protocol=pickle.HIGHEST_PROTOCOL)
 
     @classmethod
@@ -105,3 +107,10 @@ class ModelElement(ModelRegistry):
 
     def __str__(self) -> str:
         return f"{self.__class__.__name__}(id={self.id}, description={self.description})"
+
+    def finalize(self) -> None:
+        """
+        Perform any finalization actions for the model element.
+        This method can be overridden by subclasses to implement custom finalization logic.
+        """
+        pass
