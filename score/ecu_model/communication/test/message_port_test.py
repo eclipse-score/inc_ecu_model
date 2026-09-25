@@ -16,12 +16,12 @@ import unittest
 from pydantic import ValidationError
 
 from score.ecu_model.common.asil_level import AsilLevel
-from score.ecu_model.communication.detail.message_port import MessageBinding
 from score.ecu_model.communication.message_channel import MessageChannel
 from score.ecu_model.communication.message_port import (
     ProvidedMessagePort,
     RequiredMessagePort,
 )
+from score.ecu_model.communication.protocol import ProtocolKind
 from score.ecu_model.model import ModelRegistry
 
 
@@ -36,80 +36,82 @@ class TestMessagePort(unittest.TestCase):
             channel_id=42,
         )
 
-    def _binding(self) -> MessageBinding:
-        return MessageBinding(deployment_properties={"topic": "speed"})
-
     def test_provided_message_port_preserves_payload_and_queue_metadata(self) -> None:
         channel = self._channel()
-        binding = self._binding()
         port = ProvidedMessagePort(
             name="SpeedPort",
             channel=channel,
-            binding=binding,
             debug_only=True,
             asil=AsilLevel.B,
+            protocol=ProtocolKind.ARA_COM,
             max_published_messages=4,
         )
 
         self.assertEqual(port.name.as_str, "SpeedPort")
         self.assertIs(port.channel, channel)
-        self.assertIs(port.binding, binding)
         self.assertTrue(port.debug_only)
         self.assertEqual(port.asil, AsilLevel.B)
         self.assertEqual(port.max_published_messages, 4)
 
     def test_required_message_port_preserves_payload_and_queue_metadata(self) -> None:
         channel = self._channel()
-        binding = self._binding()
         port = RequiredMessagePort(
             name="SpeedPort",
             channel=channel,
-            binding=binding,
             debug_only=True,
             asil=AsilLevel.D,
+            protocol=ProtocolKind.MW_DIAG,
             max_required_messages=8,
         )
 
         self.assertEqual(port.name.as_str, "SpeedPort")
         self.assertIs(port.channel, channel)
-        self.assertIs(port.binding, binding)
         self.assertTrue(port.debug_only)
         self.assertEqual(port.asil, AsilLevel.D)
         self.assertEqual(port.max_required_messages, 8)
 
     def test_required_message_port_defaults(self) -> None:
         channel = self._channel()
-        binding = self._binding()
-        port = RequiredMessagePort(name="SpeedPort", channel=channel, binding=binding)
+        port = RequiredMessagePort(name="SpeedPort", channel=channel, protocol=ProtocolKind.ARA_DIAG)
 
         self.assertFalse(port.debug_only)
         self.assertEqual(port.asil, AsilLevel.QM)
         self.assertEqual(port.max_required_messages, 1)
         self.assertIs(port.channel, channel)
-        self.assertIs(port.binding, binding)
 
     def test_queue_sizes_must_be_positive_integers(self) -> None:
         channel = self._channel()
-        binding = self._binding()
         with self.assertRaises(ValidationError):
-            ProvidedMessagePort(name="SpeedPort", channel=channel, binding=binding, max_published_messages=0)
+            ProvidedMessagePort(
+                name="SpeedPort",
+                channel=channel,
+                protocol=ProtocolKind.ARA_COM,
+                max_published_messages=0,
+            )
 
         with self.assertRaises(ValidationError):
-            ProvidedMessagePort(name="SpeedPort", channel=channel, binding=binding, max_published_messages=-1)
+            ProvidedMessagePort(
+                name="SpeedPort",
+                channel=channel,
+                protocol=ProtocolKind.ARA_COM,
+                max_published_messages=-1,
+            )
 
         with self.assertRaises(ValidationError):
-            RequiredMessagePort(name="SpeedPort", channel=channel, binding=binding, max_required_messages=0)
+            RequiredMessagePort(
+                name="SpeedPort",
+                channel=channel,
+                protocol=ProtocolKind.MW_COM,
+                max_required_messages=0,
+            )
 
         with self.assertRaises(ValidationError):
-            RequiredMessagePort(name="SpeedPort", channel=channel, binding=binding, max_required_messages=-1)
-
-    def test_binding_is_required(self) -> None:
-        channel = self._channel()
-        with self.assertRaises(ValidationError):
-            ProvidedMessagePort(name="SpeedPort", channel=channel)  # type: ignore[call-arg]
-
-        with self.assertRaises(ValidationError):
-            RequiredMessagePort(name="SpeedPort", channel=channel)  # type: ignore[call-arg]
+            RequiredMessagePort(
+                name="SpeedPort",
+                channel=channel,
+                protocol=ProtocolKind.MW_COM,
+                max_required_messages=-1,
+            )
 
 
 if __name__ == "__main__":

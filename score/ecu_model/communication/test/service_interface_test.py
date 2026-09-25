@@ -18,12 +18,9 @@ from pydantic import ValidationError
 from score.ecu_model.common.version import Version
 from score.ecu_model.communication.service_interface import (
     Attribute,
-    AttributeBinding,
     Broadcast,
-    BroadcastBinding,
     InterfaceDefinition,
     Method,
-    MethodBinding,
     ServiceInterface,
 )
 from score.ecu_model.model import ModelRegistry
@@ -33,7 +30,7 @@ class TestServiceInterface(unittest.TestCase):
     def setUp(self) -> None:
         ModelRegistry.elements.clear()
 
-    def test_service_interface_preserves_design_members_and_bindings(self) -> None:
+    def test_service_interface_preserves_design_members_and_properties(self) -> None:
         design = InterfaceDefinition(
             name="VehicleState",
             namespace="example",
@@ -47,16 +44,16 @@ class TestServiceInterface(unittest.TestCase):
             namespace="deployment",
             design_element=design,
             service_id=42,
-            broadcast_bindings={"VehicleStateChanged": BroadcastBinding(deployment_properties={"event_id": 1})},
-            attribute_bindings={"CurrentVehicleState": AttributeBinding(deployment_properties={"field_id": 2})},
-            method_bindings={"Reset": MethodBinding(deployment_properties={"method_id": 3})},
+            broadcast_deployment_properties={"VehicleStateChanged": {"event_id": 1}},
+            attribute_deployment_properties={"CurrentVehicleState": {"field_id": 2}},
+            method_deployment_properties={"Reset": {"method_id": 3}},
         )
 
         self.assertEqual(design.fully_qualified_name, "example.VehicleState")
         self.assertIs(service_interface.design_element, design)
         self.assertEqual(service_interface.service_id, 42)
 
-    def test_bindings_must_reference_declared_members(self) -> None:
+    def test_member_deployment_properties_must_reference_declared_members(self) -> None:
         with self.assertRaises(ValidationError):
             ServiceInterface(
                 name="VehicleStateDeployment",
@@ -64,10 +61,10 @@ class TestServiceInterface(unittest.TestCase):
                     name="VehicleState",
                     version=Version(),
                 ),
-                broadcast_bindings={"Unknown": BroadcastBinding()},
+                broadcast_deployment_properties={"Unknown": {}},
             )
 
-    def test_bindings_must_cover_all_declared_members(self) -> None:
+    def test_member_deployment_properties_must_cover_all_declared_members(self) -> None:
         with self.assertRaises(ValidationError):
             ServiceInterface(
                 name="VehicleStateDeployment",
@@ -78,7 +75,7 @@ class TestServiceInterface(unittest.TestCase):
                 ),
             )
 
-    def test_attribute_bindings_must_reference_declared_attributes(self) -> None:
+    def test_attribute_deployment_properties_must_reference_declared_attributes(self) -> None:
         with self.assertRaises(ValidationError):
             ServiceInterface(
                 name="VehicleStateDeployment",
@@ -86,10 +83,10 @@ class TestServiceInterface(unittest.TestCase):
                     name="VehicleState",
                     version=Version(),
                 ),
-                attribute_bindings={"Unknown": AttributeBinding()},
+                attribute_deployment_properties={"Unknown": {}},
             )
 
-    def test_method_bindings_must_reference_declared_methods(self) -> None:
+    def test_method_deployment_properties_must_reference_declared_methods(self) -> None:
         with self.assertRaises(ValidationError):
             ServiceInterface(
                 name="VehicleStateDeployment",
@@ -97,10 +94,10 @@ class TestServiceInterface(unittest.TestCase):
                     name="VehicleState",
                     version=Version(),
                 ),
-                method_bindings={"Unknown": MethodBinding()},
+                method_deployment_properties={"Unknown": {}},
             )
 
-    def test_attribute_bindings_must_cover_all_declared_attributes(self) -> None:
+    def test_attribute_deployment_properties_must_cover_all_declared_attributes(self) -> None:
         with self.assertRaises(ValidationError):
             ServiceInterface(
                 name="VehicleStateDeployment",
@@ -111,7 +108,7 @@ class TestServiceInterface(unittest.TestCase):
                 ),
             )
 
-    def test_method_bindings_must_cover_all_declared_methods(self) -> None:
+    def test_method_deployment_properties_must_cover_all_declared_methods(self) -> None:
         with self.assertRaises(ValidationError):
             ServiceInterface(
                 name="VehicleStateDeployment",
@@ -154,18 +151,27 @@ class TestServiceInterface(unittest.TestCase):
         self.assertIsNone(method.error_return_codes)
         self.assertFalse(method.fire_and_forget)
 
-    def test_binding_deployment_properties_validation(self) -> None:
-        binding = BroadcastBinding(deployment_properties={"event_id": 1})
-        self.assertEqual(binding.deployment_properties, {"event_id": 1})
+    def test_deployment_properties_validation(self) -> None:
+        service_interface = ServiceInterface(
+            name="VehicleStateDeployment",
+            design_element=InterfaceDefinition(name="VehicleState", version=Version()),
+            deployment_properties={"event_id": 1},
+        )
+        self.assertEqual(service_interface.deployment_properties, {"event_id": 1})
 
         with self.assertRaises(ValidationError):
-            BroadcastBinding(deployment_properties={" ": 1})
+            ServiceInterface(
+                name="VehicleStateDeployment",
+                design_element=InterfaceDefinition(name="VehicleState", version=Version()),
+                deployment_properties={" ": 1},
+            )
 
         with self.assertRaises(ValidationError):
-            AttributeBinding(deployment_properties={"": 1})
-
-        with self.assertRaises(ValidationError):
-            MethodBinding(deployment_properties={"   ": 1})
+            ServiceInterface(
+                name="VehicleStateDeployment",
+                design_element=InterfaceDefinition(name="VehicleState", version=Version()),
+                broadcast_deployment_properties={"VehicleStateChanged": {" ": 1}},
+            )
 
     def test_service_interface_with_string_namespace_and_properties(self) -> None:
         design = InterfaceDefinition(name="VehicleState", version=Version())

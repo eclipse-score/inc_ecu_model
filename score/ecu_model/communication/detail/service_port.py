@@ -39,7 +39,6 @@ class _ServicePort(_BasePort):
         strict=True,
         description="Optional positive service instance identifier from the source deployment",
     )
-    deployment_properties: dict[str, object] = Field(default_factory=dict)
 
     """
     TODO: need to check if design_element is actually needed, for example to select only specific members uf the used service interface etc.

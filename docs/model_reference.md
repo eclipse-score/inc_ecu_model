@@ -25,7 +25,7 @@ Inheritance (`<|--`) and references between the documented types; members are om
 ```mermaid
 classDiagram
     class AsilLevel
-    class MessageBinding
+    class ProtocolKind
     class ProvidedMessagePort
     class ProvidedServicePort
     class RequiredMessagePort
@@ -67,12 +67,9 @@ classDiagram
     InterfaceDefinition --> Broadcast : broadcasts
     InterfaceDefinition --> Attribute : attributes
     InterfaceDefinition --> Method : methods
-    ServiceInterface --> Identifier : name, broadcast_bindings, attribute_bindings, method_bindings
+    ServiceInterface --> Identifier : name, broadcast_deployment_properties, attribute_deployment_properties, method_deployment_properties
     ServiceInterface --> QualifiedName : namespace
     ServiceInterface --> InterfaceDefinition : design_element
-    ServiceInterface --> BroadcastBinding : broadcast_bindings
-    ServiceInterface --> AttributeBinding : attribute_bindings
-    ServiceInterface --> MethodBinding : method_bindings
     ArrayDataType --> DataTypeBase : data_type
     ArrayDataType --> Identifier : data_type
     ArrayDataType --> PrimitiveDataType : data_type
@@ -166,14 +163,6 @@ _method_
 
 Return a >= b.  Computed by @total_ordering from (not a < b).
 
-## `score.ecu_model.communication.detail.message_port`
-
-### `MessageBinding`
-
-Inherits from `_DeploymentBinding`.
-
-A binding for message-oriented communication ports.
-
 ## `score.ecu_model.communication.detail.service_port`
 
 ### `PortDefinition`
@@ -231,6 +220,23 @@ A message port consumed by an application or activity.
 | --- | --- | --- | --- |
 | `max_required_messages` | `int` | `1` | Max input queue size, window size regarding all messages published by the producer |
 
+## `score.ecu_model.communication.protocol`
+
+### `ProtocolKind`
+
+Inherits from `str`, `Enum`.
+
+Discriminator values for concrete communication binding models.
+
+**Members**
+
+| Member | Value |
+| --- | --- |
+| `ARA_COM` | `'ARA::COM'` |
+| `ARA_DIAG` | `'ARA::DIAG'` |
+| `MW_COM` | `'MW::COM'` |
+| `MW_DIAG` | `'MW::DIAG'` |
+
 ## `score.ecu_model.communication.service_interface`
 
 ### `Broadcast`
@@ -278,24 +284,6 @@ Named service method with input, output, and error definitions.
 | `error_return_codes` | [`EnumDataType`](#enumdatatype) \| [`Identifier`](#identifier) \| [`QualifiedName`](#qualifiedname) \| None | `None` | Specifies the error return codes of the method |
 | `fire_and_forget` | `bool` | `False` | Indicates if the method requires acknowledgment on bus level |
 
-### `BroadcastBinding`
-
-Inherits from `_DeploymentBinding`.
-
-Deployment metadata attached to a service broadcast.
-
-### `AttributeBinding`
-
-Inherits from `_DeploymentBinding`.
-
-Deployment metadata attached to a service attribute.
-
-### `MethodBinding`
-
-Inherits from `_DeploymentBinding`.
-
-Deployment metadata attached to a service method.
-
 ### `InterfaceDefinition`
 
 Inherits from [`ModelElement`](#modelelement).
@@ -341,17 +329,18 @@ Concrete deployment of an InterfaceDefinition.
 | `design_element` | [`InterfaceDefinition`](#interfacedefinition) | _required_ |  |
 | `service_id` | `int \| None` | `None` |  |
 | `deployment_properties` | `dict[str, object]` | `dict()` |  |
-| `broadcast_bindings` | dict[[`Identifier`](#identifier), [`BroadcastBinding`](#broadcastbinding)] | `dict()` |  |
-| `attribute_bindings` | dict[[`Identifier`](#identifier), [`AttributeBinding`](#attributebinding)] | `dict()` |  |
-| `method_bindings` | dict[[`Identifier`](#identifier), [`MethodBinding`](#methodbinding)] | `dict()` |  |
+| `interface_deployment_properties` | `dict[str, object]` | `dict()` |  |
+| `broadcast_deployment_properties` | dict[[`Identifier`](#identifier), dict[str, object]] | `dict()` |  |
+| `attribute_deployment_properties` | dict[[`Identifier`](#identifier), dict[str, object]] | `dict()` |  |
+| `method_deployment_properties` | dict[[`Identifier`](#identifier), dict[str, object]] | `dict()` |  |
 
 **Validators**
 
 | Validator | Kind | Applies to | Description |
 | --- | --- | --- | --- |
-| `_validate_property_names` | field, after | `deployment_properties` | Validates `deployment_properties`. |
+| `_validate_property_names` | field, after | `deployment_properties`, `interface_deployment_properties`, `broadcast_deployment_properties`, `attribute_deployment_properties`, `method_deployment_properties` | Validates `deployment_properties`, `interface_deployment_properties`, `broadcast_deployment_properties`, `attribute_deployment_properties`, `method_deployment_properties`. |
 | `_coerce_namespace` | model, before | _the whole model_ | Allow for specifying the namespace as a simple dot-separated string instead of a QualifiedName object during construction. |
-| `_validate_member_bindings` | model, after | _the whole model_ | Validate that all member bindings reference declared members in the interface design element and all declared members are covered by bindings. Raises a ValueError in case of dangling bindings or interface members. |
+| `_validate_member_deployment_properties` | model, after | _the whole model_ | Validate that all member-specific deployment data references declared members in the interface design element and all declared members are covered by deployment data. |
 
 ## `score.ecu_model.communication.service_port`
 

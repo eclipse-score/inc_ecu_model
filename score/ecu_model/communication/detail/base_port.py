@@ -14,9 +14,11 @@
 from __future__ import annotations
 
 from typing import Any
+from score.ecu_model.communication.protocol import ProtocolKind
 
 from pydantic import Field, model_validator
 
+from score.ecu_model.common.asil_level import AsilLevel
 from score.ecu_model.common.version import Version
 from score.ecu_model.data_types.identifier import Identifier, QualifiedName
 from score.ecu_model.model import ModelElement
@@ -33,6 +35,18 @@ class _BasePort(ModelElement):
     version: Version = Field(
         default_factory=lambda: Version(major=1, minor=0, patch=0),
         description="Semantic version of the port interface",
+    )
+    deployment_properties: dict[str, object] = Field(default_factory=dict)
+    debug_only: bool = Field(
+        default=False,
+        description="Whether this port is a debug-only interface rather than production data",
+    )
+    asil: AsilLevel = Field(
+        default=AsilLevel.QM,
+        description="Data integrity level promised by the sender (ISO 26262)",
+    )
+    protocol: ProtocolKind | None = Field(
+        description="Communication protocol used by this port",
     )
 
     def model_post_init(self, context: Any, /) -> None:
