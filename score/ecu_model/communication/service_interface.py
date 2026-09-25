@@ -16,7 +16,6 @@ from __future__ import annotations
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from score.ecu_model.common.version import Version
-from score.ecu_model.communication.service_interface.detail import _DeploymentBinding
 from score.ecu_model.data_types.common import DataTypeOrReference, DataTypeReference
 from score.ecu_model.data_types.composite import DataTypeField
 from score.ecu_model.data_types.enum import EnumDataType
@@ -59,18 +58,6 @@ class Method(BaseModel):
     )
 
 
-class BroadcastBinding(_DeploymentBinding):
-    """Deployment metadata attached to a service broadcast."""
-
-
-class AttributeBinding(_DeploymentBinding):
-    """Deployment metadata attached to a service attribute."""
-
-
-class MethodBinding(_DeploymentBinding):
-    """Deployment metadata attached to a service method."""
-
-
 class InterfaceDefinition(ModelElement):
     """Reusable design-time declaration of an interface."""
 
@@ -110,7 +97,7 @@ class InterfaceDefinition(ModelElement):
         return QualifiedName((*self.namespace.names, self.name)).as_str
 
 
-class Interface(ModelElement):
+class ServiceInterface(ModelElement):
     """Concrete deployment of an InterfaceDefinition."""
 
     name: Identifier
@@ -118,9 +105,10 @@ class Interface(ModelElement):
     design_element: InterfaceDefinition
     service_id: int | None = Field(default=None, ge=0, strict=True)
     deployment_properties: dict[str, object] = Field(default_factory=dict)
-    broadcast_bindings: dict[Identifier, BroadcastBinding] = Field(default_factory=dict)
-    attribute_bindings: dict[Identifier, AttributeBinding] = Field(default_factory=dict)
-    method_bindings: dict[Identifier, MethodBinding] = Field(default_factory=dict)
+    interface_deployment_properties: dict[str, object] = Field(default_factory=dict)
+    broadcast_deployment_properties: dict[Identifier, dict[str, object]] = Field(default_factory=dict)
+    attribute_deployment_properties: dict[Identifier, dict[str, object]] = Field(default_factory=dict)
+    method_deployment_properties: dict[Identifier, dict[str, object]] = Field(default_factory=dict)
 
     @model_validator(mode="before")
     @classmethod
@@ -133,29 +121,40 @@ class Interface(ModelElement):
             data["namespace"] = QualifiedName(tuple(Identifier(part) for part in data["namespace"].split(".")))
         return data
 
-    @field_validator("deployment_properties")
+    @field_validator(
+        "deployment_properties",
+        "interface_deployment_properties",
+        "broadcast_deployment_properties",
+        "attribute_deployment_properties",
+        "method_deployment_properties",
+    )
     @classmethod
-    def _validate_property_names(cls, value: dict[str, object]) -> dict[str, object]:
-        if any(not key.strip() for key in value):
-            raise ValueError("deployment property names must not be empty")
+    def _validate_property_names(
+        cls, value: dict[str, object] | dict[Identifier, dict[str, object]]
+    ) -> dict[str, object] | dict[Identifier, dict[str, object]]:
+        if isinstance(value, dict):
+            for member_properties in value.values():
+                if isinstance(member_properties, dict) and any(not key.strip() for key in member_properties):
+                    raise ValueError("deployment property names must not be empty")
+            if any(not key.strip() for key in value if isinstance(key, str)):
+                raise ValueError("deployment property names must not be empty")
         return value
 
     @model_validator(mode="after")
-    def _validate_member_bindings(self) -> "Interface":
+    def _validate_member_deployment_properties(self) -> "ServiceInterface":
         """
-        Validate that all member bindings reference declared members in the interface design element
-        and all declared members are covered by bindings.
-        Raises a ValueError in case of dangling bindings or interface members.
+        Validate that all member-specific deployment data references declared members in the interface design element
+        and all declared members are covered by deployment data.
         """
-        for bindings, members, kind in (
-            (self.broadcast_bindings, self.design_element.broadcasts, "broadcast"),
-            (self.attribute_bindings, self.design_element.attributes, "attribute"),
-            (self.method_bindings, self.design_element.methods, "method"),
+        for member_properties, members, kind in (
+            (self.broadcast_deployment_properties, self.design_element.broadcasts, "broadcast"),
+            (self.attribute_deployment_properties, self.design_element.attributes, "attribute"),
+            (self.method_deployment_properties, self.design_element.methods, "method"),
         ):
-            binding_names = set(bindings)
-            member_names = set(members)
-            if binding_names - member_names:
-                raise ValueError(f"interface {kind} bindings must reference declared {kind}s")
-            if member_names - binding_names:
-                raise ValueError(f"interface {kind} bindings must cover all declared {kind}s")
+            keys = {str(name) for name in member_properties}
+            names = {str(name) for name in members}
+            if any(name not in names for name in keys):
+                raise ValueError(f"interface {kind} deployment properties must reference declared {kind}s")
+            if any(name not in keys for name in names):
+                raise ValueError(f"interface {kind} members must be covered by deployment properties")
         return self

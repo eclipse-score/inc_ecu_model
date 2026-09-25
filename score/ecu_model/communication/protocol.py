@@ -11,17 +11,13 @@
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
 
-load("@rules_python//python:defs.bzl", "py_test")
+from enum import Enum
 
-py_test(
-    name = "interface_test",
-    size = "small",
-    srcs = ["interface_test.py"],
-    deps = [
-        "//score/ecu_model",
-        "//score/ecu_model:common",
-        "//score/ecu_model/communication/service_interface",
-        "//score/ecu_model/data_types",
-        "@pypi//pydantic",
-    ],
-)
+
+class ProtocolKind(str, Enum):
+    """Discriminator values for concrete communication binding models."""
+
+    ARA_COM = "ARA::COM"
+    ARA_DIAG = "ARA::DIAG"
+    MW_COM = "MW::COM"
+    MW_DIAG = "MW::DIAG"

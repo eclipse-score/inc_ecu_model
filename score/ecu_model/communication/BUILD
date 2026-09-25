@@ -14,11 +14,18 @@
 load("@rules_python//python:defs.bzl", "py_library")
 
 py_library(
-    name = "service_interface",
+    name = "communication",
     srcs = [
         "__init__.py",
-        "detail.py",
-        "interface.py",
+        "detail/__init__.py",
+        "detail/base_port.py",
+        "detail/message_port.py",
+        "detail/service_port.py",
+        "message_channel.py",
+        "message_port.py",
+        "protocol.py",
+        "service_interface.py",
+        "service_port.py",
     ],
     visibility = ["//visibility:public"],
     deps = [

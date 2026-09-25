@@ -20,7 +20,7 @@ py_binary(
     deps = [
         "//score/ecu_model",
         "//score/ecu_model:common",
-        "//score/ecu_model/communication/service_interface",
+        "//score/ecu_model/communication",
         "//score/ecu_model/data_types",
     ],
 )
@@ -39,7 +39,7 @@ py_test(
     deps = [
         "//score/ecu_model",
         "//score/ecu_model:common",
-        "//score/ecu_model/communication/service_interface",
+        "//score/ecu_model/communication",
         "//score/ecu_model/data_types",
     ],
 )

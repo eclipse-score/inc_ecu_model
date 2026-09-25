@@ -22,3 +22,12 @@ py_test(
         "@pypi//pydantic",
     ],
 )
+
+py_test(
+    name = "asil_level_test",
+    size = "small",
+    srcs = ["asil_level_test.py"],
+    deps = [
+        "//score/ecu_model:common",
+    ],
+)

@@ -10,24 +10,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
-load("@rules_python//python:defs.bzl", "py_library")
 
-py_library(
-    name = "ecu_model",
-    srcs = ["model.py"],
-    visibility = ["//visibility:public"],
-    deps = [
-        "@pypi//pydantic",
-    ],
-)
+from enum import Enum
 
-py_library(
-    name = "common",
-    srcs = [
-        "common/__init__.py",
-        "common/asil_level.py",
-        "common/version.py",
-    ],
-    visibility = ["//visibility:public"],
-    deps = ["@pypi//pydantic"],
-)
+
+class AsilLevel(str, Enum):
+    """ISO 26262 Automotive Safety Integrity Level."""
+
+    QM = "QM"
+    A = "ASIL-A"
+    B = "ASIL-B"
+    C = "ASIL-C"
+    D = "ASIL-D"
+
+    def __str__(self) -> str:
+        return self.value
