@@ -17,6 +17,7 @@ from typing import Literal
 from pydantic import Field, field_validator, model_validator
 
 from score.ecu_model.data_types.common import (
+    DataType,
     DataTypeBase,
     DataTypeKind,
     DataTypeOrReference,
@@ -65,3 +66,8 @@ class ArrayDataType(DataTypeBase):
         ):
             raise ValueError("dimension_min must not be greater than dimension_max")
         return self
+
+    def finalize(self) -> None:
+        """Finalize the array data type by ensuring its element type is fully resolved."""
+        if not isinstance(self.data_type, DataType):
+            raise TypeError("finalize can only be called on instances of DataTypeBase")

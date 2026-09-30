@@ -17,6 +17,7 @@ from pydantic import ValidationError
 
 from score.ecu_model.data_types.array import ArrayDataType
 from score.ecu_model.data_types.common import DataTypeKind, DataTypeSource
+from score.ecu_model.data_types.identifier import Identifier
 from score.ecu_model.data_types.primitives import PrimitiveDataType
 from score.ecu_model.data_types.struct import StructDataType
 
@@ -113,6 +114,26 @@ class TestArrayDataType(unittest.TestCase):
         )
 
         self.assertIs(array_type.data_type, element_struct)
+
+    def test_finalize_checks_element_data_type(self) -> None:
+        array_type = ArrayDataType(
+            name="PointArray",
+            source_kind=DataTypeSource.FRANCA,
+            data_type=Identifier("Point"),
+        )
+
+        with self.assertRaises(TypeError):
+            array_type.finalize()
+
+    def test_finalize_accepts_resolved_element_data_type(self) -> None:
+        element_struct = StructDataType(name="Point", source_kind=DataTypeSource.FRANCA)
+        array_type = ArrayDataType(
+            name="PointArray",
+            source_kind=DataTypeSource.FRANCA,
+            data_type=element_struct,
+        )
+
+        array_type.finalize()
 
 
 if __name__ == "__main__":
