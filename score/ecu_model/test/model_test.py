@@ -110,5 +110,52 @@ class TestSerialization(unittest.TestCase):
             ModelRegistry.deserialize(pickle.dumps({"not": "a registry"}))
 
 
+class TestMerge(unittest.TestCase):
+    def setUp(self) -> None:
+        self._saved_registry = dict(ModelRegistry.elements)
+        ModelRegistry.elements.clear()
+
+    def tearDown(self) -> None:
+        ModelRegistry.elements.clear()
+        ModelRegistry.elements.update(self._saved_registry)
+
+    def test_merge_given_foreign_registry_expect_elements_added_and_existing_kept(self) -> None:
+        foreign = ModelElement(description="foreign")
+        foreign_registry = pickle.loads(ModelRegistry.serialize())
+        ModelRegistry.elements.clear()
+        existing = ModelElement(description="existing")
+
+        added = ModelRegistry.merge(foreign_registry)
+
+        self.assertEqual(added, 1)
+        self.assertIs(ModelRegistry.elements[existing.id], existing)
+        self.assertEqual(ModelRegistry.elements[foreign.id].description, "foreign")
+
+    def test_merge_given_duplicate_uuid_expect_value_error_and_registry_unchanged(self) -> None:
+        existing = ModelElement(description="existing")
+        new = ModelElement(description="new")
+        foreign_registry = pickle.loads(ModelRegistry.serialize())
+        del ModelRegistry.elements[new.id]
+
+        with self.assertRaises(ValueError):
+            ModelRegistry.merge(foreign_registry)
+
+        self.assertEqual(ModelRegistry.elements, {existing.id: existing})
+
+    def test_merge_given_invalid_payload_expect_type_error(self) -> None:
+        with self.assertRaises(TypeError):
+            ModelRegistry.merge({"not": "a registry"})
+
+    def test_merge_given_unpickled_child_registry_expect_shared_references_resolvable(self) -> None:
+        element = ModelElement(description="child")
+        child_result = pickle.dumps({"datatypes": {"child": element}, "registry": ModelRegistry.elements})
+        ModelRegistry.elements.clear()
+
+        restored = pickle.loads(child_result)
+        ModelRegistry.merge(restored["registry"])
+
+        self.assertIs(restored["datatypes"]["child"], ModelRegistry.elements[element.id])
+
+
 if __name__ == "__main__":
     unittest.main()

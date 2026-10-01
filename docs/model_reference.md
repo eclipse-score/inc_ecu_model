@@ -924,6 +924,25 @@ Replace the registry with a previously serialized one and return the number of r
 
 - TypeError: If the payload does not contain a registry of model elements.
 
+#### `merge(cls, elements: dict[UUID, 'ModelElement']) -> int`
+
+_classmethod_
+
+Add the elements of another registry, e.g. one unpickled from a child process, and return their number.
+The child must only ship elements it created itself: a forked child inherits the parent's registry, so
+shipping all of it would yield duplicates. Spawned children start with an empty registry.
+
+
+**Args:**
+
+- elements: Registry content as held by ModelRegistry.elements.
+
+
+**Raises:**
+
+- TypeError: If the payload is not a registry of model elements.
+- ValueError: If any element ID is already registered. The registry is left unchanged in that case.
+
 ### `ModelElement`
 
 Inherits from [`ModelRegistry`](#modelregistry).

@@ -73,14 +73,39 @@ class ModelRegistry(BaseModel):
             TypeError: If the payload does not contain a registry of model elements.
         """
         restored = pickle.loads(data)
-        if not isinstance(restored, dict) or not all(
-            isinstance(key, UUID) and isinstance(value, ModelElement) for key, value in restored.items()
-        ):
-            raise TypeError("Payload does not contain a ModelRegistry")
+        cls._validate_registry_payload(restored)
         # Replacing the contents rather than the dict itself keeps existing references to the registry valid.
         ModelRegistry.elements.clear()
         ModelRegistry.elements.update(restored)
         return len(ModelRegistry.elements)
+
+    @classmethod
+    def merge(cls, elements: dict[UUID, "ModelElement"]) -> int:
+        """
+        Add the elements of another registry, e.g. one unpickled from a child process, and return their number.
+        The child must only ship elements it created itself: a forked child inherits the parent's registry, so
+        shipping all of it would yield duplicates. Spawned children start with an empty registry.
+
+        Args:
+            elements: Registry content as held by ModelRegistry.elements.
+
+        Raises:
+            TypeError: If the payload is not a registry of model elements.
+            ValueError: If any element ID is already registered. The registry is left unchanged in that case.
+        """
+        cls._validate_registry_payload(elements)
+        duplicates = elements.keys() & ModelRegistry.elements.keys()
+        if duplicates:
+            raise ValueError(f"Duplicate instances: {', '.join(sorted(str(uuid) for uuid in duplicates))}")
+        ModelRegistry.elements.update(elements)
+        return len(elements)
+
+    @staticmethod
+    def _validate_registry_payload(payload: Any) -> None:
+        if not isinstance(payload, dict) or not all(
+            isinstance(key, UUID) and isinstance(value, ModelElement) for key, value in payload.items()
+        ):
+            raise TypeError("Payload does not contain a ModelRegistry")
 
 
 class ModelElement(ModelRegistry):
@@ -100,6 +125,7 @@ class ModelElement(ModelRegistry):
     """
     Properties of the model element.
     """
+    # uuid4 draws from os.urandom, so IDs stay unique across (also forked) processes; collision odds are negligible.
     id: UUID = Field(default_factory=uuid4, description="Unique identifier of the model element")
     description: str = Field(default="", description="Human-readable description of the model element")
 
