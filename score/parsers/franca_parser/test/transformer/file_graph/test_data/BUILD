@@ -28,3 +28,15 @@ filegroup(
     srcs = ["imported_types.fidl"],
     visibility = ["//visibility:public"],
 )
+
+filegroup(
+    name = "import_cycle_root",
+    srcs = ["left_cycle.fidl"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "import_cycle_dependency",
+    srcs = ["right_cycle.fidl"],
+    visibility = ["//visibility:public"],
+)

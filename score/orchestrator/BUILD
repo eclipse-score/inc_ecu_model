@@ -11,31 +11,31 @@
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
 
-load("@rules_python//python:defs.bzl", "py_library")
+load("@rules_python//python:defs.bzl", "py_binary", "py_library")
+
+package(default_visibility = ["//visibility:public"])
 
 py_library(
-    name = "transformer",
+    name = "orchestrator",
     srcs = [
-        "__init__.py",
-        "base_transformer.py",
-        "fdepl_transformer.py",
-        "fidl_transformer.py",
-        "file_graph_transformer.py",
-        "import_transformer.py",
-        "resolver/__init__.py",
-        "resolver/fdepl_resolver.py",
-        "resolver/fidl_datatype_resolver.py",
-        "resolver/utils_resolver.py",
-    ],
-    visibility = [
-        "//score/orchestrator:__pkg__",
-        "//score/parsers/franca_parser:__pkg__",
-        "//score/parsers/franca_parser:__subpackages__",
+        "common.py",
+        "franca_adapter.py",
+        "load_dispatch.py",
+        "protobuf_adapter.py",
     ],
     deps = [
+        "//score/ecu_model",
         "//score/ecu_model/data_types",
-        "//score/parsers/franca_parser:deployment_property_applier",
+        "//score/parsers/franca_parser",
         "//score/parsers/franca_parser/model",
-        "@pypi//lark",
+        "//score/parsers/franca_parser/transformer",
+        "//score/parsers/protobuf_parser",
     ],
+)
+
+py_binary(
+    name = "run_load_dispatch",
+    srcs = ["run_load_dispatch.py"],
+    main = "run_load_dispatch.py",
+    deps = [":orchestrator"],
 )

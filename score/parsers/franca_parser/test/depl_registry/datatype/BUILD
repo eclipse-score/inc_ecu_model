@@ -13,6 +13,22 @@
 
 load("@rules_python//python:defs.bzl", "py_test")
 
+filegroup(
+    name = "deployment_root",
+    srcs = ["test_data/datatype_properties_deployment.fdepl"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "deployment_dependencies",
+    srcs = [
+        "test_data/datatype_properties.fidl",
+        "test_data/score_architecture_deployment_spec.fdepl",
+        "test_data/score_network_SOMEIP_deployment_spec.fdepl",
+    ],
+    visibility = ["//visibility:public"],
+)
+
 py_test(
     name = "deployment_property_applier_test",
     srcs = ["deployment_property_applier_test.py"],
