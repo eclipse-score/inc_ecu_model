@@ -79,6 +79,40 @@ ecu_model_parse(
 
 The rule writes `{"datatypes": ...}` to `my_model.pkl`. See [`test/BUILD`](test/BUILD) for a complete example.
 
+### Full chain: parse and generate
+
+Generators are not run by the orchestrator. Each generator is a separate Bazel rule consuming the model pickle, so
+Bazel caches the parse step and every generator independently and only runs the generators a target needs.
+
+```mermaid
+graph LR
+  Inputs>"FIDL / FDEPL / proto_library"] --> Parse["ecu_model_parse"] --> Pickle>"my_model.pkl"]
+  Pickle --> GenA["datatype_list"] --> Txt>"my_datatypes.txt"]
+  Pickle --> GenB["further generators ..."]
+```
+
+[`datatype_list`](../generators/datatype_list) is a minimal example generator writing one
+`<fully qualified name> <kind> <source>` line per datatype:
+
+```starlark
+load("//score/generators/datatype_list:datatype_list.bzl", "datatype_list")
+
+datatype_list(
+    name = "my_datatypes",
+    model = ":my_model",
+)
+```
+
+```text
+example.franca.imported.ImportedTypes.ImportedValue struct franca
+example.franca.root.RootTypes.RootValue struct franca
+integration.shared.Payload struct protobuf
+```
+
+The complete, tested chain is in [`generators/datatype_list/test/BUILD`](../generators/datatype_list/test/BUILD).
+A new generator needs a Python executable reading `pickle.loads(model)["datatypes"]` and a rule running it on the
+`model` file, following [`datatype_list.bzl`](../generators/datatype_list/datatype_list.bzl).
+
 ### Command line
 
 ```bash
