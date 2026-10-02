@@ -171,6 +171,18 @@ class TestMerge(unittest.TestCase):
         with self.assertRaises(TypeError):
             ModelRegistry.merge({"not": "a registry"})
 
+    def test_merge_serialized_given_partial_model_expect_elements_added_and_existing_kept(self) -> None:
+        partial = ModelElement(description="partial")
+        blob = ModelRegistry.serialize()
+        ModelRegistry.elements.clear()
+        existing = ModelElement(description="existing")
+
+        added = ModelRegistry.merge_serialized(blob)
+
+        self.assertEqual(added, 1)
+        self.assertIs(ModelRegistry.elements[existing.id], existing)
+        self.assertEqual(ModelRegistry.elements[partial.id].description, "partial")
+
     def test_merge_given_unpickled_child_registry_expect_shared_references_resolvable(self) -> None:
         element = ModelElement(description="child")
         child_result = pickle.dumps({"datatypes": {"child": element}, "registry": ModelRegistry.elements})

@@ -19,7 +19,6 @@ py_library(
     name = "orchestrator",
     srcs = [
         "common.py",
-        "load_dispatch.py",
         "parser_adapter.py",
     ],
     deps = [
@@ -30,8 +29,19 @@ py_library(
 )
 
 py_binary(
-    name = "run_load_dispatch",
-    srcs = ["run_load_dispatch.py"],
-    main = "run_load_dispatch.py",
+    name = "run_parser",
+    srcs = ["run_parser.py"],
+    main = "run_parser.py",
     deps = [":orchestrator"],
+)
+
+py_binary(
+    name = "merge_models",
+    srcs = ["merge_models.py"],
+    main = "merge_models.py",
+    # Unpickling needs every module whose classes can occur in a partial model.
+    deps = [
+        "//score/ecu_model",
+        "//score/ecu_model/data_types",
+    ],
 )

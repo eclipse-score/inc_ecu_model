@@ -11,7 +11,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
 
-"""Public API ecu_model_parse: builds an ECU model from IDL inputs, one Bazel action per parser."""
+"""Public API ecu_model: builds an ECU model from IDL inputs, one Bazel action per parser."""
 
 load("@protobuf//bazel/common:proto_info.bzl", "ProtoInfo")
 
@@ -110,7 +110,7 @@ _ecu_model_merge = rule(
 )
 
 def franca_inputs(srcs, deps = []):
-    """Inputs of the Franca parser for ecu_model_parse.
+    """Inputs of the Franca parser for ecu_model.
 
     Args:
         srcs: Root FIDL/FDEPL files.
@@ -121,7 +121,7 @@ def franca_inputs(srcs, deps = []):
     return struct(parser = "franca", srcs = srcs, deps = deps)
 
 def protobuf_inputs(deps):
-    """Inputs of the Protobuf parser for ecu_model_parse.
+    """Inputs of the Protobuf parser for ecu_model.
 
     Args:
         deps: proto_library targets whose transitive descriptor sets are parsed.
@@ -132,10 +132,10 @@ def protobuf_inputs(deps):
 
 def _checked(inputs, parser, helper):
     if inputs and getattr(inputs, "parser", None) != parser:
-        fail("ecu_model_parse: {} must be created with {}()".format(parser, helper))
+        fail("ecu_model: {} must be created with {}()".format(parser, helper))
     return inputs
 
-def ecu_model_parse(name, franca = None, protobuf = None, log_level = "WARNING", **kwargs):
+def ecu_model(name, franca = None, protobuf = None, log_level = "WARNING", **kwargs):
     """Creates the ECU model <name>.pkl, running only the parsers whose inputs are given.
 
     Every parser runs in its own Bazel action. With inputs for more than one parser, their partial models
@@ -143,8 +143,8 @@ def ecu_model_parse(name, franca = None, protobuf = None, log_level = "WARNING",
 
     Args:
         name: Name of the model target.
-        franca: franca_inputs() for the Franca parser, or None to skip it.
-        protobuf: protobuf_inputs() for the Protobuf parser, or None to skip it.
+        franca: franca_inputs() for the Franca data-type parser, or None to skip it.
+        protobuf: protobuf_inputs() for the Protobuf data-type parser, or None to skip it.
         log_level: Log level of all actions.
         **kwargs: Common attributes like testonly or visibility, applied to all targets.
     """
@@ -154,7 +154,7 @@ def ecu_model_parse(name, franca = None, protobuf = None, log_level = "WARNING",
     if _checked(protobuf, "protobuf", "protobuf_inputs"):
         parsers.append(("protobuf", _protobuf_model, {"deps": protobuf.deps}))
     if not parsers:
-        fail("ecu_model_parse needs franca or protobuf inputs")
+        fail("ecu_model needs franca or protobuf inputs")
 
     if len(parsers) == 1:
         _, parser_rule, attrs = parsers[0]

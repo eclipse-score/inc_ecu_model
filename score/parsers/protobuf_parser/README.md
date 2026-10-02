@@ -42,14 +42,15 @@ This directory provides a two-phase pipeline from Bazel-produced Protobuf
 
 ## Bazel Integration
 
-For model consumers, use [`ecu_model_parse`](../../orchestrator/ecu_model_parse.bzl). Bazel owns Protobuf compilation
-and import resolution; the orchestrator consumes the descriptor sets and writes the whole model registry:
+For model consumers, use `ecu_model` from [`ecu_model.bzl`](../../orchestrator/ecu_model.bzl); with
+only `protobuf` inputs given, it runs the Protobuf parser alone. Bazel owns Protobuf compilation and import resolution;
+the orchestrator consumes the descriptor sets and writes the model registry:
 
 ```text
 proto_library targets
     -> ProtoInfo.transitive_descriptor_sets
-    -> ecu_model_parse Bazel action
-    -> run_load_dispatch Python executable
+    -> Protobuf parser Bazel action
+    -> run_parser Python executable
     -> ProtobufToDataTypeParser descriptor-set entry point
     -> serialized ModelRegistry
 ```
@@ -68,7 +69,7 @@ wrapper before they can use this integration.
 For example, an imported proto and its consumer can be declared as follows:
 
 ```starlark
-load("//score/orchestrator:ecu_model_parse.bzl", "ecu_model_parse")
+load("//score/orchestrator:ecu_model.bzl", "ecu_model", "protobuf_inputs")
 
 proto_library(
     name = "input_vehicle_data_proto",
@@ -83,13 +84,13 @@ proto_library(
     ],
 )
 
-ecu_model_parse(
+ecu_model(
     name = "activation_decision_model",
-    protobuf_deps = [":activation_decision_input_proto"],
+    protobuf = protobuf_inputs(deps = [":activation_decision_input_proto"]),
 )
 ```
 
-`ecu_model_parse` constrains `protobuf_deps` to targets providing `ProtoInfo`, collects their
+`ecu_model` constrains the `protobuf_inputs()` deps to targets providing `ProtoInfo`, collects their
 `transitive_descriptor_sets`, declares those files as action inputs, and passes their paths to the executable. It does
 not reconstruct `--proto_path` from `File.path`, external repository names, or `_virtual_imports` paths.
 

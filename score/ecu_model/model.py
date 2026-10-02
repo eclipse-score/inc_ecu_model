@@ -122,6 +122,17 @@ class ModelRegistry(BaseModel):
         ModelRegistry.elements.update(elements)
         return len(elements)
 
+    @classmethod
+    def merge_serialized(cls, data: bytes) -> int:
+        """
+        Add the elements of a payload produced by serialize(), e.g. a partial model, and return their number.
+
+        Raises:
+            TypeError: If the payload does not contain a registry of model elements.
+            ValueError: If any element ID is already registered. The registry is left unchanged in that case.
+        """
+        return cls.merge(pickle.loads(data))
+
     @staticmethod
     def _validate_registry_payload(payload: Any) -> None:
         if not isinstance(payload, dict) or not all(

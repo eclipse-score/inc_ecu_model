@@ -11,7 +11,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
 
-"""Example generator: list all datatypes of an ECU model pickle written by ecu_model_parse."""
+"""Example generator: list all datatypes of an ECU model pickle written by ecu_model."""
 
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ def main(arguments: Sequence[str] | None = None) -> None:
         arguments: Command line arguments; sys.argv[1:] if None.
     """
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--model", required=True, type=Path, help="Serialized ModelRegistry written by ecu_model_parse")
+    parser.add_argument("--model", required=True, type=Path, help="Serialized ModelRegistry written by ecu_model")
     parser.add_argument("--output", required=True, type=Path, help="Text file to write")
     parsed = parser.parse_args(arguments)
 

@@ -11,44 +11,45 @@
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
 
-"""Command line entry point: parse all IDL inputs into one ECU model and write the serialized ModelRegistry."""
+"""Command line entry point: merge partial models into one serialized ModelRegistry."""
 
 from __future__ import annotations
 
 import argparse
 import logging
+import time
 from collections.abc import Sequence
 from pathlib import Path
 
 from score.ecu_model.model import ModelRegistry
-from score.orchestrator.common import ParsingPathInfo
-from score.orchestrator.load_dispatch import load_and_parse
+
+_logger = logging.getLogger(__name__)
 
 
 def main(arguments: Sequence[str] | None = None) -> None:
     """
-    Parse the given inputs with load_and_parse() and write ModelRegistry.serialize() to the output file.
+    Merge the given partial models and write ModelRegistry.serialize() to the output file.
 
     Args:
         arguments: Command line arguments; sys.argv[1:] if None.
     """
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--franca-src", action="append", default=[], type=Path, help="Root FIDL/FDEPL file")
-    parser.add_argument("--franca-dep", action="append", default=[], type=Path, help="Importable FIDL/FDEPL file")
-    parser.add_argument("--descriptor-set", action="append", default=[], type=Path, help="protoc descriptor set")
-    parser.add_argument("--output", required=True, type=Path, help="Pickle file to write")
+    parser.add_argument("--model", action="append", required=True, type=Path, help="Partial model file to merge")
+    parser.add_argument("--output", required=True, type=Path, help="Merged model file to write")
     parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])
     parsed = parser.parse_args(arguments)
 
-    logging.basicConfig(
-        level=parsed.log_level,
-        format="%(asctime)s %(levelname)s [%(processName)s] %(name)s: %(message)s",
-    )
-    load_and_parse(
-        franca=ParsingPathInfo(src_files=tuple(parsed.franca_src), dependency_files=tuple(parsed.franca_dep)),
-        protobuf=ParsingPathInfo(src_files=tuple(parsed.descriptor_set)),
-    )
+    logging.basicConfig(level=parsed.log_level, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    start = time.perf_counter()
+    for model in parsed.model:
+        _logger.debug("Merged %d model element(s) from %s", ModelRegistry.merge_serialized(model.read_bytes()), model)
     parsed.output.write_bytes(ModelRegistry.serialize())
+    _logger.info(
+        "Merged %d model element(s) of %d partial model(s) in %.2f s",
+        len(ModelRegistry.elements),
+        len(parsed.model),
+        time.perf_counter() - start,
+    )
 
 
 if __name__ == "__main__":

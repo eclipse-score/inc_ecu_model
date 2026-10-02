@@ -11,18 +11,21 @@
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
 
-"""Example generator rule consuming the output of ecu_model_parse."""
+"""Example generator rule consuming a model built with the orchestrator rules."""
+
+load("//score/orchestrator:ecu_model.bzl", "EcuModelInfo")
 
 def _datatype_list_impl(ctx):
+    model = ctx.attr.model[EcuModelInfo].model
     output = ctx.actions.declare_file(ctx.label.name + ".txt")
 
     args = ctx.actions.args()
-    args.add("--model", ctx.file.model)
+    args.add("--model", model)
     args.add("--output", output)
 
     ctx.actions.run(
         executable = ctx.executable._generator,
-        inputs = [ctx.file.model],
+        inputs = [model],
         outputs = [output],
         arguments = [args],
         mnemonic = "DatatypeList",
@@ -36,8 +39,8 @@ datatype_list = rule(
     attrs = {
         "model": attr.label(
             mandatory = True,
-            allow_single_file = [".pkl"],
-            doc = "ecu_model_parse target.",
+            providers = [EcuModelInfo],
+            doc = "ecu_model target.",
         ),
         "_generator": attr.label(
             default = Label("//score/generators/datatype_list"),

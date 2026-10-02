@@ -15,8 +15,8 @@ SPDX-License-Identifier: Apache-2.0
 
 # Orchestrator
 
-Runs the model tooling around the ECU model. Today it runs all available IDL parsers in parallel and merges their
-results into one ECU model; generators and other model-related steps may follow.
+Builds the ECU model from IDL inputs: one Bazel action per parser produces a partial model, a merge action combines
+them. Generators and other model-related steps consume the result as separate rules.
 
 Currently orchestrated parsers:
 
@@ -29,58 +29,60 @@ Currently orchestrated parsers:
 
 ```mermaid
 graph LR
-  Caller["Caller<br/>(CLI / Bazel rule / Python)"] -->|"(1) ParsingPathInfo per parser"| Dispatch["load_and_parse()"]
-  subgraph Children["Child processes (spawn)"]
-    direction LR
-    Franca["FrancaAdapter.run()"] --> FrancaPickle>"franca_result.pkl"]
-    Protobuf["ProtobufAdapter.run()"] --> ProtobufPickle>"protobuf_result.pkl"]
-  end
-  Dispatch -->|"(2) start"| Children
-  FrancaPickle -->|"(3) join + load"| Dispatch
-  ProtobufPickle -->|"(3) join + load"| Dispatch
-  Dispatch -->|"(4) merge"| Model[/"ModelRegistry"/]
+  Franca>"franca_inputs()"] --> FrancaModel["Franca action<br/>(run_parser)"] --> FrancaPickle>"my_model_franca.pkl"]
+  Proto>"protobuf_inputs()"] --> ProtobufModel["Protobuf action<br/>(run_parser)"] --> ProtobufPickle>"my_model_protobuf.pkl"]
+  FrancaPickle --> Merge["Merge action<br/>(merge_models)"]
+  ProtobufPickle --> Merge
+  Merge --> Model>"my_model.pkl"]
 ```
 
-1. The caller describes the input files of each parser with a `ParsingPathInfo` (`src_files`,
-   `dependency_files`). Parsers without source files are skipped.
-2. Each parser runs in its own child process. The `spawn` start method gives every child a fresh interpreter, so its
-   `ModelRegistry` starts empty.
-3. A child writes exactly one pickle into a temporary directory, either `{"registry": ...}` with all model elements
-   the parser created or `{"error": ...}`. Pickling all elements as one object keeps the references between them
-   intact. Result files are used instead of IPC queues, since parse results can be large.
-4. The main process joins the children, loads the pickles and adds all model elements to its `ModelRegistry` via
-  `ModelRegistry.merge()`. Parser failures raise `RuntimeError`. Before writing the output, `ModelRegistry.serialize()`
-  calls `finalize()`, which checks model-wide identities (including duplicate datatype names) and raises `ValueError`
-  if the model is invalid.
+`ecu_model` is the public API. It decides from the given inputs which parsers run:
+
+1. Each parser with inputs runs in its own Bazel action, so Bazel parallelizes the parsers and caches every partial
+   model on its own: changing a `.proto` file does not re-parse any Franca file.
+2. A parser action writes its partial model with `ModelRegistry.serialize()`. With inputs for a single parser, this is
+   already the model `<name>.pkl` and no merge action runs.
+3. With inputs for several parsers, the merge action adds all partial models `<name>_<parser>.pkl` with
+   `ModelRegistry.merge_serialized()` and writes `<name>.pkl` with `ModelRegistry.serialize()`. Every serialize call
+   runs `finalize()`, which checks model-wide identities (including duplicate datatype names) and fails the action if
+   the model is invalid.
+
+The model target provides `EcuModelInfo`, which generators use to receive it.
 
 ## Modules
 
 - [`common.py`](common.py): `ParsingPathInfo` and the `Parser` base class of all adapters.
 - [`parser_adapter.py`](parser_adapter.py): adapters to the parsers.
-- [`load_dispatch.py`](load_dispatch.py): `load_and_parse()`, process handling and merging.
-- [`run_load_dispatch.py`](run_load_dispatch.py): command line entry point.
-- [`ecu_model_parse.bzl`](ecu_model_parse.bzl): Bazel rule wrapping the command line entry point.
+- [`run_parser.py`](run_parser.py): command line entry point running one parser.
+- [`merge_models.py`](merge_models.py): command line entry point merging models.
+- [`ecu_model.bzl`](ecu_model.bzl): the public macro `ecu_model`, the provider `EcuModelInfo` and
+  the private per-parser and merge rules.
 
 ## Usage
 
-### Bazel rule
+### Bazel
 
 ```starlark
-load("//score/orchestrator:ecu_model_parse.bzl", "ecu_model_parse")
+load("//score/orchestrator:ecu_model.bzl", "ecu_model", "franca_inputs", "protobuf_inputs")
 
-ecu_model_parse(
+ecu_model(
     name = "my_model",
-    franca_srcs = ["my_service.fdepl"],
-    franca_deps = ["my_types.fidl", "//path/to:deployment_specs"],
-    protobuf_deps = [":my_proto"],  # proto_library targets, transitive descriptor sets are included
+    franca = franca_inputs(
+        srcs = ["my_service.fdepl"],
+        deps = ["my_types.fidl", "//path/to:deployment_specs"],  # only parsed when imported
+    ),
+    protobuf = protobuf_inputs(
+        deps = [":my_proto"],  # proto_library targets, transitive descriptor sets are included
+    ),
     log_level = "INFO",  # default WARNING
 )
 ```
 
-The rule writes the whole model, i.e. `ModelRegistry.serialize()`, to `my_model.pkl`. Load it with
-`ModelRegistry.deserialize()`; `score.ecu_model.query.datatypes_by_name()` indexes named datatypes by their fully
-qualified names and rejects duplicates. Inline types without names are excluded. See
-[`test/BUILD`](test/BUILD) for a complete example.
+The model is written to `my_model.pkl`. Each parser gets its inputs as one argument, created by the matching helper;
+omit the argument to skip the parser, e.g. only `protobuf` for a Protobuf model. Load a model with
+`ModelRegistry.deserialize()`;
+`score.ecu_model.query.datatypes_by_name()` indexes named datatypes by their fully qualified names. See
+[`test/BUILD`](test/BUILD) for complete examples.
 
 ### Full chain: parse and generate
 
@@ -89,7 +91,7 @@ Bazel caches the parse step and every generator independently and only runs the 
 
 ```mermaid
 graph LR
-  Inputs>"FIDL / FDEPL / proto_library"] --> Parse["ecu_model_parse"] --> Pickle>"my_model.pkl"]
+  Inputs>"FIDL / FDEPL / proto_library"] --> Parse["ecu_model"] --> Pickle>"my_model.pkl"]
   Pickle --> GenA["datatype_list"] --> Txt>"my_datatypes.txt"]
   Pickle --> GenB["further generators ..."]
 ```
@@ -113,59 +115,47 @@ integration.shared.Payload struct protobuf
 ```
 
 The complete, tested chain is in [`generators/datatype_list/test/BUILD`](../generators/datatype_list/test/BUILD).
-A new generator needs a Python executable that loads the `model` file with `ModelRegistry.deserialize()` and uses
-model queries such as `datatypes_by_name()` to access its content, plus a rule running it. See
+A new generator needs a Python executable that loads the model file with `ModelRegistry.deserialize()` and uses
+model queries such as `datatypes_by_name()` to access its content, plus a rule taking the model via `EcuModelInfo`. See
 [`datatype_list.bzl`](../generators/datatype_list/datatype_list.bzl).
 
 ### Command line
 
+The executables behind the Bazel actions, mainly for debugging:
+
 ```bash
-bazel run //score/orchestrator:run_load_dispatch -- \
-    --franca-src $PWD/my_service.fdepl --franca-dep $PWD/my_types.fidl \
-    --descriptor-set $PWD/my_proto.pb \
-    --output /tmp/model.pkl --log-level DEBUG
-```
-
-### Python
-
-```python
-from score.orchestrator.common import ParsingPathInfo
-from score.orchestrator.load_dispatch import load_and_parse
-from score.ecu_model.query import datatypes_by_name
-
-load_and_parse(
-    franca=ParsingPathInfo(src_files=(root_fidl,), dependency_files=(imported_fidl,)),
-    protobuf=ParsingPathInfo(src_files=(descriptor_set,)),
-)
-datatypes = datatypes_by_name()
+bazel run //score/orchestrator:run_parser -- --parser franca \
+    --src $PWD/my_service.fdepl --dep $PWD/my_types.fidl --output /tmp/franca.pkl --log-level DEBUG
+bazel run //score/orchestrator:run_parser -- --parser protobuf \
+    --src $PWD/my_proto.pb --output /tmp/protobuf.pkl
+bazel run //score/orchestrator:merge_models -- \
+    --model /tmp/franca.pkl --model /tmp/protobuf.pkl --output /tmp/model.pkl
 ```
 
 ## Dependency files
 
 Franca only parses dependency files reachable via imports from the source files. Protobuf parses all descriptor sets
-together; `ecu_model_parse` passes the transitive descriptor sets of `protobuf_deps`.
+together; `ecu_model` passes the transitive descriptor sets of the `protobuf_inputs()` deps.
 
 ## Logging
 
-All logging uses the standard `logging` module and is configured by the caller only.
+All logging uses the standard `logging` module, configured by the command line entry points via `--log-level` (the
+`log_level` argument of `ecu_model`).
 
 - `Parser.run()` logs the start (number of input files, file list on `DEBUG`) and the end (duration, number of created
   model elements) of every parser.
-- Spawned children inherit no logging configuration. The orchestrator passes its effective log level to each child,
-  which filters records before sending them through a queue. The main process re-emits them through the logger of the
-  same name, so its handlers and any stricter logger levels apply.
-- `load_and_parse()` logs the number of merged model elements and the total duration.
+- `merge_models` logs the number of merged model elements and the duration.
 
 ## Adding a parser
 
-1. Implement a subclass of `Parser` in a new adapter module: set `name` and implement `parse()`, which only has to
-   create model elements. They are tracked in `ModelRegistry` and shipped to the main process automatically.
-2. Add a keyword argument for its `ParsingPathInfo` to `load_and_parse()` and add the adapter to its candidates.
-3. Extend [`run_load_dispatch.py`](run_load_dispatch.py) and [`ecu_model_parse.bzl`](ecu_model_parse.bzl) with the
-   new inputs.
+1. Implement a subclass of `Parser` in [`parser_adapter.py`](parser_adapter.py): set `name` and implement `parse()`,
+   which only has to create model elements. They are tracked in `ModelRegistry`.
+2. Add the adapter to `PARSERS` in [`run_parser.py`](run_parser.py).
+3. Add a private rule for its inputs to [`ecu_model.bzl`](ecu_model.bzl) using `_run_parser()`, a public
+   `<parser>_inputs()` helper, and a `<parser>` argument to `ecu_model`, which runs the parser whenever it is
+   given.
 
 ## Known limitations
 
 - Two Protobuf files with the same import path (e.g. two `consumer.proto` from different `proto_library` targets
-  using `strip_import_prefix`) cannot be parsed in one run: `duplicate file name`.
-- Starting a child with `spawn` costs a few hundred milliseconds, which dominates for small inputs.
+  using `strip_import_prefix`) cannot be parsed in one model: `duplicate file name`.

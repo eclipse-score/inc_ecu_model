@@ -15,7 +15,7 @@ import os
 import unittest
 from pathlib import Path
 
-from score.ecu_model.data_types.common import DataTypeBase
+from score.ecu_model.data_types.common import DataTypeBase, DataTypeSource
 from score.ecu_model.data_types.enum import EnumDataType
 from score.ecu_model.data_types.struct import StructDataType
 from score.ecu_model.data_types.union import UnionDataType
@@ -28,11 +28,29 @@ def load_combined_datatypes() -> dict[str, DataTypeBase]:
     return datatypes_by_name()
 
 
+def load_franca_datatypes() -> dict[str, DataTypeBase]:
+    ModelRegistry.deserialize(Path(os.environ["FRANCA_MODEL"]).read_bytes())
+    return datatypes_by_name()
+
+
 def field_types(struct: StructDataType) -> dict[str, object]:
     return {field.name.as_str: field.data_type for field in struct.fields}
 
 
-class EcuModelParseFrancaInputsTest(unittest.TestCase):
+class EcuModelPartialModelTest(unittest.TestCase):
+    def test_macro_given_only_franca_inputs_expect_model_without_protobuf_types(self) -> None:
+        datatypes = load_franca_datatypes()
+
+        self.assertIn("example.franca.root.RootTypes.RootValue", datatypes)
+        self.assertEqual({datatype.source_kind for datatype in datatypes.values()}, {DataTypeSource.FRANCA})
+
+    def test_macro_given_same_franca_inputs_plus_protobuf_expect_superset_of_franca_only_model(self) -> None:
+        franca_names = set(load_franca_datatypes())
+
+        self.assertLess(franca_names, set(load_combined_datatypes()))
+
+
+class EcuModelFrancaInputsTest(unittest.TestCase):
     def test_rule_given_franca_root_with_dependency_expect_imported_type_resolved(self) -> None:
         datatypes = load_combined_datatypes()
 
@@ -68,7 +86,7 @@ class EcuModelParseFrancaInputsTest(unittest.TestCase):
         self.assertEqual(status.deployment_properties, {"ScoreProperty405": 42})
 
 
-class EcuModelParseProtobufInputsTest(unittest.TestCase):
+class EcuModelProtobufInputsTest(unittest.TestCase):
     def test_rule_given_proto_with_dependency_expect_cross_file_reference_resolved(self) -> None:
         datatypes = load_combined_datatypes()
 

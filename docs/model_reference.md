@@ -955,6 +955,18 @@ shipping all of it would yield duplicates. Spawned children start with an empty 
 - TypeError: If the payload is not a registry of model elements.
 - ValueError: If any element ID is already registered. The registry is left unchanged in that case.
 
+#### `merge_serialized(cls, data: bytes) -> int`
+
+_classmethod_
+
+Add the elements of a payload produced by serialize(), e.g. a partial model, and return their number.
+
+
+**Raises:**
+
+- TypeError: If the payload does not contain a registry of model elements.
+- ValueError: If any element ID is already registered. The registry is left unchanged in that case.
+
 ### `ModelElement`
 
 Inherits from [`ModelRegistry`](#modelregistry).
