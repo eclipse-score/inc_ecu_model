@@ -19,9 +19,9 @@ load("//score/orchestrator:ecu_model_parse.bzl", "ecu_model_parse")
 ecu_model_parse(
     name = "example_model",
     testonly = True,
-    franca_deps = ["//score/parsers/franca_parser/test/transformer/file_graph/test_data:direct_import_dependency"],
-    franca_srcs = ["//score/parsers/franca_parser/test/transformer/file_graph/test_data:direct_import_root"],
-    protobuf_deps = ["//score/parsers/protobuf_parser/test/integration/protobuf_pipeline:shared_proto"],
+    franca_deps = ["//score/test_data/franca/file_graph:direct_import_dependency"],
+    franca_srcs = ["//score/test_data/franca/file_graph:direct_import_root"],
+    protobuf_deps = ["//score/test_data/protobuf/pipeline:shared_proto"],
 )
 
 datatype_list(

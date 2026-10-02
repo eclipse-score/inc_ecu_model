@@ -11,32 +11,29 @@
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
 
+package(default_visibility = ["//visibility:public"])
+
 filegroup(
     name = "fidl_files",
     srcs = glob(["*.fidl"]),
-    visibility = ["//visibility:public"],
 )
 
 filegroup(
     name = "direct_import_root",
     srcs = ["root_imports_types.fidl"],
-    visibility = ["//visibility:public"],
 )
 
 filegroup(
     name = "direct_import_dependency",
     srcs = ["imported_types.fidl"],
-    visibility = ["//visibility:public"],
 )
 
 filegroup(
     name = "import_cycle_root",
     srcs = ["left_cycle.fidl"],
-    visibility = ["//visibility:public"],
 )
 
 filegroup(
     name = "import_cycle_dependency",
     srcs = ["right_cycle.fidl"],
-    visibility = ["//visibility:public"],
 )

@@ -18,7 +18,7 @@ import unittest
 from score.ecu_model.data_types.common import DataTypeBase
 from score.ecu_model.model import ModelRegistry
 from score.orchestrator.run_load_dispatch import main
-from score.orchestrator.test.inputs import write_descriptor_set, write_fidl
+from score.test_data.inputs import write_descriptor_set, write_fidl
 
 
 class RunLoadDispatchTest(unittest.TestCase):

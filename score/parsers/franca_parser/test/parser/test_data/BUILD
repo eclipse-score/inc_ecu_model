@@ -16,18 +16,3 @@ filegroup(
     srcs = glob(["*.fidl"]),
     visibility = ["//visibility:public"],
 )
-
-filegroup(
-    name = "shared_import_roots",
-    srcs = [
-        "first_root_imports_shared.fidl",
-        "second_root_imports_shared.fidl",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-filegroup(
-    name = "shared_import_dependency",
-    srcs = ["shared_types.fidl"],
-    visibility = ["//visibility:public"],
-)

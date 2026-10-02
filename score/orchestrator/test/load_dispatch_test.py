@@ -19,7 +19,7 @@ from score.ecu_model.model import ModelRegistry
 from score.ecu_model.query import datatypes_by_name
 from score.orchestrator.common import ParsingPathInfo
 from score.orchestrator.load_dispatch import load_and_parse
-from score.orchestrator.test.inputs import write_descriptor_set, write_fidl
+from score.test_data.inputs import write_descriptor_set, write_fidl
 
 
 def registered_datatype_names() -> set[str]:

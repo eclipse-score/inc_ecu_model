@@ -11,7 +11,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
 
-"""Write minimal parser input files for the orchestrator tests."""
+"""Write minimal Franca and Protobuf fixtures for tests."""
 
 from __future__ import annotations
 

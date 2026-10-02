@@ -11,11 +11,12 @@
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
 
-load("@rules_python//python:defs.bzl", "py_test")
+load("@rules_python//python:defs.bzl", "py_library")
 
-py_test(
-    name = "deployment_property_applier_test",
-    srcs = ["deployment_property_applier_test.py"],
-    data = ["//score/test_data/franca/deployment:deployment_files"],
-    deps = ["//score/parsers/franca_parser"],
+py_library(
+    name = "inputs",
+    testonly = True,
+    srcs = ["inputs.py"],
+    visibility = ["//visibility:public"],
+    deps = ["@pypi//protobuf"],
 )

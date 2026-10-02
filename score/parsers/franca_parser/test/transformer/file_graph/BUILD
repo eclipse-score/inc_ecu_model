@@ -17,12 +17,12 @@ load("//score/parsers/franca_parser:franca_transformer.bzl", "franca_transformer
 py_test(
     name = "franca_file_graph_transformer_test",
     srcs = ["franca_file_graph_transformer_test.py"],
-    data = ["//score/parsers/franca_parser/test/transformer/file_graph/test_data:fidl_files"],
+    data = ["//score/test_data/franca/file_graph:fidl_files"],
     deps = ["//score/parsers/franca_parser"],
 )
 
 franca_transformer(
     name = "franca_transformer_fixture",
-    srcs = ["//score/parsers/franca_parser/test/transformer/file_graph/test_data:direct_import_root"],
-    deps = ["//score/parsers/franca_parser/test/transformer/file_graph/test_data:direct_import_dependency"],
+    srcs = ["//score/test_data/franca/file_graph:direct_import_root"],
+    deps = ["//score/test_data/franca/file_graph:direct_import_dependency"],
 )

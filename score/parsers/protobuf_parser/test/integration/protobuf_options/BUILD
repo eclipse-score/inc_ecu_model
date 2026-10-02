@@ -17,31 +17,11 @@ load("//score/parsers/protobuf_parser:proto_parser_example.bzl", "proto_parser_e
 
 package(default_visibility = ["//visibility:public"])
 
-proto_library(
-    name = "custom_options_proto",
-    srcs = ["test_data/custom_options.proto"],
-    strip_import_prefix = "test_data",
-    deps = ["@com_google_protobuf//:descriptor_proto"],
-)
-
-proto_library(
-    name = "custom_options_consumer_proto",
-    srcs = ["test_data/custom_options_consumer.proto"],
-    strip_import_prefix = "test_data",
-    deps = [":custom_options_proto"],
-)
-
-proto_library(
-    name = "standard_options_consumer_proto",
-    srcs = ["test_data/standard_options_consumer.proto"],
-    strip_import_prefix = "test_data",
-)
-
 proto_parser_example(
     name = "options_model",
     protobuf_deps = [
-        ":custom_options_consumer_proto",
-        ":standard_options_consumer_proto",
+        "//score/test_data/protobuf/options:custom_options_consumer_proto",
+        "//score/test_data/protobuf/options:standard_options_consumer_proto",
     ],
 )
 

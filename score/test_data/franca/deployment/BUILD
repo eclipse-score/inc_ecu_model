@@ -11,11 +11,26 @@
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
 
-load("@rules_python//python:defs.bzl", "py_test")
+package(default_visibility = ["//visibility:public"])
 
-py_test(
-    name = "deployment_property_applier_test",
-    srcs = ["deployment_property_applier_test.py"],
-    data = ["//score/test_data/franca/deployment:deployment_files"],
-    deps = ["//score/parsers/franca_parser"],
+filegroup(
+    name = "deployment_root",
+    srcs = ["datatype_properties_deployment.fdepl"],
+)
+
+filegroup(
+    name = "deployment_dependencies",
+    srcs = [
+        "datatype_properties.fidl",
+        "score_architecture_deployment_spec.fdepl",
+        "score_network_SOMEIP_deployment_spec.fdepl",
+    ],
+)
+
+filegroup(
+    name = "deployment_files",
+    srcs = glob([
+        "*.fidl",
+        "*.fdepl",
+    ]),
 )

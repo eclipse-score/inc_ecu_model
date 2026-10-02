@@ -21,7 +21,7 @@ from score.ecu_model.query import datatypes_by_name
 from score.orchestrator.common import ParsingPathInfo
 from score.orchestrator.franca_adapter import FrancaAdapter
 from score.orchestrator.protobuf_adapter import ProtobufAdapter
-from score.orchestrator.test.inputs import write_descriptor_set, write_fidl
+from score.test_data.inputs import write_descriptor_set, write_fidl
 
 
 class _RegistryIsolation(unittest.TestCase):
