@@ -45,6 +45,7 @@ py_library(
 
 py_binary(
     name = "franca_transformer_runner",
+    testonly = True,
     srcs = ["franca_transformer_runner.py"],
     data = glob(["grammar/*.lark"]),
     main = "franca_transformer_runner.py",

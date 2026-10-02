@@ -11,43 +11,18 @@
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
 
-load("@rules_proto//proto:defs.bzl", "proto_library")
 load("@rules_python//python:defs.bzl", "py_test")
 load("//score/parsers/protobuf_parser:proto_parser_example.bzl", "proto_parser_example")
 
 package(default_visibility = ["//visibility:public"])
 
-proto_library(
-    name = "shared_proto",
-    srcs = ["test_data/shared.proto"],
-    strip_import_prefix = "test_data",
-)
-
-proto_library(
-    name = "consumer_proto",
-    srcs = ["test_data/consumer.proto"],
-    strip_import_prefix = "test_data",
-    deps = [":shared_proto"],
-)
-
-proto_library(
-    name = "nested_references_proto",
-    srcs = ["test_data/nested_references.proto"],
-    strip_import_prefix = "test_data",
-)
-
-proto_library(
-    name = "collections_and_oneof_proto",
-    srcs = ["test_data/collections_and_oneof.proto"],
-    strip_import_prefix = "test_data",
-)
-
 proto_parser_example(
     name = "pipeline_model",
+    testonly = True,
     protobuf_deps = [
-        ":consumer_proto",
-        ":nested_references_proto",
-        ":collections_and_oneof_proto",
+        "//score/test_data/protobuf/pipeline:consumer_proto",
+        "//score/test_data/protobuf/pipeline:nested_references_proto",
+        "//score/test_data/protobuf/pipeline:collections_and_oneof_proto",
     ],
 )
 

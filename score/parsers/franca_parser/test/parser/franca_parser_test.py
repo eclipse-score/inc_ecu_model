@@ -19,6 +19,7 @@ from pathlib import Path
 from score.parsers.franca_parser.parser import FrancaParser
 
 TEST_DATA_DIRECTORY = Path(__file__).parent / "test_data"
+SHARED_IMPORT_DIRECTORY = Path(__file__).parents[4] / "test_data/franca/shared_import"
 
 
 class FrancaParserTest(unittest.TestCase):
@@ -27,17 +28,17 @@ class FrancaParserTest(unittest.TestCase):
     def test_parse_files_given_transitive_imports_expect_each_file_parsed_once(self) -> None:
         parser = FrancaParser(
             root_files=[
-                TEST_DATA_DIRECTORY / "first_root_imports_shared.fidl",
-                TEST_DATA_DIRECTORY / "second_root_imports_shared.fidl",
+                SHARED_IMPORT_DIRECTORY / "first_root_imports_shared.fidl",
+                SHARED_IMPORT_DIRECTORY / "second_root_imports_shared.fidl",
             ],
-            dependency_files=[TEST_DATA_DIRECTORY / "shared_types.fidl"],
+            dependency_files=[SHARED_IMPORT_DIRECTORY / "shared_types.fidl"],
         )
 
         parsed_files = parser.parse_files()
 
         self.assertEqual(len(parsed_files), 3)
         self.assertEqual(
-            parsed_files[(TEST_DATA_DIRECTORY / "shared_types.fidl").resolve()].imports,
+            parsed_files[(SHARED_IMPORT_DIRECTORY / "shared_types.fidl").resolve()].imports,
             [],
         )
 

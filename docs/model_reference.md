@@ -601,6 +601,12 @@ _property_
 
 Return the fully qualified name combining namespace and name.
 
+#### `registry_identity(self) -> tuple[str, str] | None`
+
+_method_
+
+Identify named datatypes across all parser sources.
+
 ## `score.ecu_model.data_types.composite`
 
 ### `DataTypeField`
@@ -906,7 +912,13 @@ This method is called after the model is instantiated and all field validators a
 
 _classmethod_
 
-Pickle the whole registry, i.e. every registered ModelElement.
+Finalize and pickle the whole registry, i.e. every registered ModelElement.
+
+#### `finalize(cls) -> None`
+
+_classmethod_
+
+Run final checks on the whole registry before serialization.
 
 #### `deserialize(cls, data: bytes) -> int`
 
@@ -924,6 +936,37 @@ Replace the registry with a previously serialized one and return the number of r
 
 - TypeError: If the payload does not contain a registry of model elements.
 
+#### `merge(cls, elements: dict[UUID, 'ModelElement']) -> int`
+
+_classmethod_
+
+Add the elements of another registry, e.g. one unpickled from a child process, and return their number.
+The child must only ship elements it created itself: a forked child inherits the parent's registry, so
+shipping all of it would yield duplicates. Spawned children start with an empty registry.
+
+
+**Args:**
+
+- elements: Registry content as held by ModelRegistry.elements.
+
+
+**Raises:**
+
+- TypeError: If the payload is not a registry of model elements.
+- ValueError: If any element ID is already registered. The registry is left unchanged in that case.
+
+#### `merge_serialized(cls, data: bytes) -> int`
+
+_classmethod_
+
+Add the elements of a payload produced by serialize(), e.g. a partial model, and return their number.
+
+
+**Raises:**
+
+- TypeError: If the payload does not contain a registry of model elements.
+- ValueError: If any element ID is already registered. The registry is left unchanged in that case.
+
 ### `ModelElement`
 
 Inherits from [`ModelRegistry`](#modelregistry).
@@ -936,3 +979,16 @@ Base class to be used by all objects tracked in ModelRegistry.elements.
 | --- | --- | --- | --- |
 | `id` | `UUID` | `uuid4()` | Unique identifier of the model element |
 | `description` | `str` | `''` | Human-readable description of the model element |
+
+#### `finalize(self) -> None`
+
+_method_
+
+Perform any finalization actions for the model element.
+This method can be overridden by subclasses to implement custom finalization logic.
+
+#### `registry_identity(self) -> tuple[str, str] | None`
+
+_method_
+
+Return a model-wide identity when this element has a unique name.

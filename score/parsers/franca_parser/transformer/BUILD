@@ -28,6 +28,7 @@ py_library(
         "resolver/utils_resolver.py",
     ],
     visibility = [
+        "//score/orchestrator:__pkg__",
         "//score/parsers/franca_parser:__pkg__",
         "//score/parsers/franca_parser:__subpackages__",
     ],

@@ -19,6 +19,8 @@ py_test(
     srcs = ["model_test.py"],
     deps = [
         "//score/ecu_model",
+        "//score/ecu_model:query",
+        "//score/ecu_model/data_types",
         "@pypi//pydantic",
     ],
 )

@@ -57,9 +57,31 @@ class ModelRegistry(BaseModel):
     @classmethod
     def serialize(cls) -> bytes:
         """
-        Pickle the whole registry, i.e. every registered ModelElement.
+        Finalize and pickle the whole registry, i.e. every registered ModelElement.
         """
+
+        """Finalize all elements in the registry before serialization."""
+        for element in ModelRegistry.elements.values():
+            element.finalize()
+
+        """Finalize the registry before serialization."""
+        cls.finalize()
+
         return pickle.dumps(ModelRegistry.elements, protocol=pickle.HIGHEST_PROTOCOL)
+
+    @classmethod
+    def finalize(cls) -> None:
+        """Run final checks on the whole registry before serialization."""
+
+        """Duplicate check for registry identities."""
+        identities: set[tuple[str, str]] = set()
+        for element in ModelRegistry.elements.values():
+            identity = element.registry_identity()
+            if identity is None:
+                continue
+            if identity in identities:
+                raise ValueError(f"Duplicate {identity[0]} name: {identity[1]}")
+            identities.add(identity)
 
     @classmethod
     def deserialize(cls, data: bytes) -> int:
@@ -73,14 +95,50 @@ class ModelRegistry(BaseModel):
             TypeError: If the payload does not contain a registry of model elements.
         """
         restored = pickle.loads(data)
-        if not isinstance(restored, dict) or not all(
-            isinstance(key, UUID) and isinstance(value, ModelElement) for key, value in restored.items()
-        ):
-            raise TypeError("Payload does not contain a ModelRegistry")
+        cls._validate_registry_payload(restored)
         # Replacing the contents rather than the dict itself keeps existing references to the registry valid.
         ModelRegistry.elements.clear()
         ModelRegistry.elements.update(restored)
         return len(ModelRegistry.elements)
+
+    @classmethod
+    def merge(cls, elements: dict[UUID, "ModelElement"]) -> int:
+        """
+        Add the elements of another registry, e.g. one unpickled from a child process, and return their number.
+        The child must only ship elements it created itself: a forked child inherits the parent's registry, so
+        shipping all of it would yield duplicates. Spawned children start with an empty registry.
+
+        Args:
+            elements: Registry content as held by ModelRegistry.elements.
+
+        Raises:
+            TypeError: If the payload is not a registry of model elements.
+            ValueError: If any element ID is already registered. The registry is left unchanged in that case.
+        """
+        cls._validate_registry_payload(elements)
+        duplicates = elements.keys() & ModelRegistry.elements.keys()
+        if duplicates:
+            raise ValueError(f"Duplicate instances: {', '.join(sorted(str(uuid) for uuid in duplicates))}")
+        ModelRegistry.elements.update(elements)
+        return len(elements)
+
+    @classmethod
+    def merge_serialized(cls, data: bytes) -> int:
+        """
+        Add the elements of a payload produced by serialize(), e.g. a partial model, and return their number.
+
+        Raises:
+            TypeError: If the payload does not contain a registry of model elements.
+            ValueError: If any element ID is already registered. The registry is left unchanged in that case.
+        """
+        return cls.merge(pickle.loads(data))
+
+    @staticmethod
+    def _validate_registry_payload(payload: Any) -> None:
+        if not isinstance(payload, dict) or not all(
+            isinstance(key, UUID) and isinstance(value, ModelElement) for key, value in payload.items()
+        ):
+            raise TypeError("Payload does not contain a ModelRegistry")
 
 
 class ModelElement(ModelRegistry):
@@ -100,8 +158,19 @@ class ModelElement(ModelRegistry):
     """
     Properties of the model element.
     """
+    # uuid4 draws from os.urandom, so IDs stay unique across (also forked) processes; collision odds are negligible.
     id: UUID = Field(default_factory=uuid4, description="Unique identifier of the model element")
     description: str = Field(default="", description="Human-readable description of the model element")
+
+    def finalize(self) -> None:
+        """
+        Perform any finalization actions for the model element.
+        This method can be overridden by subclasses to implement custom finalization logic.
+        """
+
+    def registry_identity(self) -> tuple[str, str] | None:
+        """Return a model-wide identity when this element has a unique name."""
+        return None
 
     def __str__(self) -> str:
         return f"{self.__class__.__name__}(id={self.id}, description={self.description})"

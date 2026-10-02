@@ -1,0 +1,3 @@
+example.franca.imported.ImportedTypes.ImportedValue struct franca
+example.franca.root.RootTypes.RootValue struct franca
+integration.shared.Payload struct protobuf

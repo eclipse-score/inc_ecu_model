@@ -11,19 +11,12 @@
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
 
-load("@rules_python//python:defs.bzl", "py_test")
-load("//score/parsers/franca_parser:franca_transformer.bzl", "franca_transformer")
+load("@rules_python//python:defs.bzl", "py_library")
 
-py_test(
-    name = "franca_file_graph_transformer_test",
-    srcs = ["franca_file_graph_transformer_test.py"],
-    data = ["//score/test_data/franca/file_graph:fidl_files"],
-    deps = ["//score/parsers/franca_parser"],
-)
-
-franca_transformer(
-    name = "franca_transformer_fixture",
+py_library(
+    name = "inputs",
     testonly = True,
-    srcs = ["//score/test_data/franca/file_graph:direct_import_root"],
-    deps = ["//score/test_data/franca/file_graph:direct_import_dependency"],
+    srcs = ["inputs.py"],
+    visibility = ["//visibility:public"],
+    deps = ["@pypi//protobuf"],
 )

@@ -16,6 +16,10 @@ load("@rules_python//python:defs.bzl", "py_test")
 py_test(
     name = "franca_parser_test",
     srcs = ["franca_parser_test.py"],
-    data = ["//score/parsers/franca_parser/test/parser/test_data:fidl_files"],
+    data = [
+        "//score/parsers/franca_parser/test/parser/test_data:fidl_files",
+        "//score/test_data/franca/shared_import:shared_import_dependency",
+        "//score/test_data/franca/shared_import:shared_import_roots",
+    ],
     deps = ["//score/parsers/franca_parser"],
 )

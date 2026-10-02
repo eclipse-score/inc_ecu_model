@@ -16,24 +16,32 @@ load("@rules_python//python:defs.bzl", "py_binary", "py_library")
 package(default_visibility = ["//visibility:public"])
 
 py_library(
-    name = "protobuf_parser",
+    name = "orchestrator",
     srcs = [
-        "api.py",
         "common.py",
-        "option_decoder.py",
-        "resolver.py",
-        "transformer.py",
+        "parser_adapter.py",
     ],
     deps = [
-        "//score/ecu_model/data_types",
-        "@pypi//protobuf",
+        "//score/ecu_model",
+        "//score/parsers/franca_parser",
+        "//score/parsers/protobuf_parser",
     ],
 )
 
 py_binary(
-    name = "proto_parser_runner",
-    testonly = True,
-    srcs = ["proto_parser_runner.py"],
-    main = "proto_parser_runner.py",
-    deps = [":protobuf_parser"],
+    name = "run_parser",
+    srcs = ["run_parser.py"],
+    main = "run_parser.py",
+    deps = [":orchestrator"],
+)
+
+py_binary(
+    name = "merge_models",
+    srcs = ["merge_models.py"],
+    main = "merge_models.py",
+    # Unpickling needs every module whose classes can occur in a partial model.
+    deps = [
+        "//score/ecu_model",
+        "//score/ecu_model/data_types",
+    ],
 )
