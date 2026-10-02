@@ -41,7 +41,9 @@ class _ForwardToLocalLogger(logging.Handler):
             logger.handle(record)
 
 
-def _run_parser(parser_class: type[Parser], path_info: ParsingPathInfo, result_path: Path, log_queue: Any) -> None:
+def _run_parser(
+    parser_class: type[Parser], path_info: ParsingPathInfo, result_path: Path, log_queue: Any, log_level: int
+) -> None:
     """
     Child process entry point: run one parser and pickle its outcome.
 
@@ -53,11 +55,12 @@ def _run_parser(parser_class: type[Parser], path_info: ParsingPathInfo, result_p
         path_info: Input files of the parser.
         result_path: File the payload is written to.
         log_queue: Queue all log records of this process are sent to.
+        log_level: Effective logging level inherited from the orchestrator in the parent process.
     """
-    # Spawned children have no logging setup; send everything to the parent, which filters by its own levels.
+    # Spawned children have no logging setup; filter records before forwarding them to the parent.
     root_logger = logging.getLogger()
     root_logger.addHandler(QueueHandler(log_queue))
-    root_logger.setLevel(logging.DEBUG)
+    root_logger.setLevel(log_level)
     try:
         known_ids = set(ModelRegistry.elements)
         parser_class(path_info).run()
@@ -132,6 +135,7 @@ def load_and_parse(
             _logger.debug("Skipping %s parser: no source files", parser_class.name)
     # spawn gives each child a fresh interpreter and thus an empty registry.
     context = get_context("spawn")
+    log_level = _logger.getEffectiveLevel()
     log_listener = QueueListener(context.Queue(), _ForwardToLocalLogger())
     log_listener.start()
     try:
@@ -142,7 +146,7 @@ def load_and_parse(
                 process = context.Process(
                     target=_run_parser,
                     name=f"{parser_class.name}_parser",
-                    args=(parser_class, path_info, result_path, log_listener.queue),
+                    args=(parser_class, path_info, result_path, log_listener.queue, log_level),
                 )
                 process.start()
                 processes[parser_class.name] = (process, result_path)

@@ -151,8 +151,9 @@ All logging uses the standard `logging` module and is configured by the caller o
 
 - `Parser.run()` logs the start (number of input files, file list on `DEBUG`) and the end (duration, number of created
   model elements) of every parser.
-- Spawned children inherit no logging configuration. They send all records through a queue to the main process, which
-  re-emits them through the logger of the same name, so its levels and handlers apply.
+- Spawned children inherit no logging configuration. The orchestrator passes its effective log level to each child,
+  which filters records before sending them through a queue. The main process re-emits them through the logger of the
+  same name, so its handlers and any stricter logger levels apply.
 - `load_and_parse()` logs the number of merged model elements and the total duration.
 
 ## Adding a parser

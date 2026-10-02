@@ -13,12 +13,14 @@
 
 from pathlib import Path
 from tempfile import TemporaryDirectory
+import logging
 import unittest
+from unittest.mock import patch
 
 from score.ecu_model.model import ModelRegistry
 from score.ecu_model.query import datatypes_by_name
 from score.orchestrator.common import ParsingPathInfo
-from score.orchestrator.load_dispatch import load_and_parse
+from score.orchestrator.load_dispatch import _ForwardToLocalLogger, load_and_parse
 from score.test_data.inputs import write_descriptor_set, write_fidl
 
 
@@ -112,6 +114,29 @@ class LoadAndParseTest(unittest.TestCase):
         self.assertIn("Starting franca parser with 1 source file(s) and 0 dependency file(s)", logs.output[0])
         self.assertRegex(logs.output[1], r"franca parser finished after \d+\.\d{2} s, created \d+ model element\(s\)")
         self.assertRegex(logs.output[2], r"Merged \d+ model element\(s\) of 1 parser\(s\) in \d+\.\d{2} s")
+
+    def test_load_and_parse_given_info_level_expect_debug_records_not_transferred(self) -> None:
+        fidl = write_fidl(self._directory, "example.franca", "Types", "Value")
+        forwarded_levels: list[int] = []
+        original_emit = _ForwardToLocalLogger.emit
+
+        def capture_level(handler: _ForwardToLocalLogger, record: logging.LogRecord) -> None:
+            forwarded_levels.append(record.levelno)
+            original_emit(handler, record)
+
+        with patch.object(_ForwardToLocalLogger, "emit", capture_level):
+            with self.assertLogs("score.orchestrator", level="INFO"):
+                load_and_parse(franca=ParsingPathInfo(src_files=(fidl,)))
+
+        self.assertEqual(forwarded_levels, [logging.INFO, logging.INFO])
+
+    def test_load_and_parse_given_debug_level_expect_child_input_files_logged(self) -> None:
+        fidl = write_fidl(self._directory, "example.franca", "Types", "Value")
+
+        with self.assertLogs("score.orchestrator", level="DEBUG") as logs:
+            load_and_parse(franca=ParsingPathInfo(src_files=(fidl,)))
+
+        self.assertTrue(any(f"franca parser input files: {fidl}" in message for message in logs.output))
 
 
 if __name__ == "__main__":
