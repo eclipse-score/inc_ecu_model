@@ -19,6 +19,7 @@ package(default_visibility = ["//visibility:public"])
 
 proto_parser_example(
     name = "options_model",
+    testonly = True,
     protobuf_deps = [
         "//score/test_data/protobuf/options:custom_options_consumer_proto",
         "//score/test_data/protobuf/options:standard_options_consumer_proto",

@@ -23,6 +23,7 @@ py_test(
 
 franca_transformer(
     name = "franca_transformer_fixture",
+    testonly = True,
     srcs = ["//score/test_data/franca/file_graph:direct_import_root"],
     deps = ["//score/test_data/franca/file_graph:direct_import_dependency"],
 )

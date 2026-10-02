@@ -19,6 +19,7 @@ package(default_visibility = ["//visibility:public"])
 
 proto_parser_example(
     name = "pipeline_model",
+    testonly = True,
     protobuf_deps = [
         "//score/test_data/protobuf/pipeline:consumer_proto",
         "//score/test_data/protobuf/pipeline:nested_references_proto",

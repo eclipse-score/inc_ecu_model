@@ -35,6 +35,7 @@ py_test(
 
 franca_transformer(
     name = "fidl_datatype_pickle",
+    testonly = True,
     srcs = ["test_data/reference_resolution/file_only_root.fidl"],
     deps = [
         "test_data/reference_resolution/anonymous_types.fidl",

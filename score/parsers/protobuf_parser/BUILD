@@ -32,6 +32,7 @@ py_library(
 
 py_binary(
     name = "proto_parser_runner",
+    testonly = True,
     srcs = ["proto_parser_runner.py"],
     main = "proto_parser_runner.py",
     deps = [":protobuf_parser"],
