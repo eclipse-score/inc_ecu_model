@@ -13,7 +13,7 @@
 
 """Example rule showing how a Protobuf parser consumes ProtoInfo descriptors."""
 
-load("@rules_proto//proto:defs.bzl", "ProtoInfo")
+load("@protobuf//bazel/common:proto_info.bzl", "ProtoInfo")
 
 def _proto_parser_example_impl(ctx):
     descriptor_sets = depset(transitive = [
