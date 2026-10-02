@@ -11,9 +11,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
 
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 
 from score.ecu_model.data_types.struct import StructDataType
 from score.ecu_model.model import ModelRegistry

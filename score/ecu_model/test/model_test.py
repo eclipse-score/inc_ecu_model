@@ -104,9 +104,11 @@ class TestSerialization(unittest.TestCase):
     def test_serialize_given_failing_element_finalize_expect_error(self) -> None:
         ModelElement()
 
-        with patch.object(ModelElement, "finalize", side_effect=ValueError("invalid element")):
-            with self.assertRaisesRegex(ValueError, "invalid element"):
-                ModelRegistry.serialize()
+        with (
+            patch.object(ModelElement, "finalize", side_effect=ValueError("invalid element")),
+            self.assertRaisesRegex(ValueError, "invalid element"),
+        ):
+            ModelRegistry.serialize()
 
     def test_deserialize_detaches_pre_existing_instances(self) -> None:
         original = ModelElement(description="original")

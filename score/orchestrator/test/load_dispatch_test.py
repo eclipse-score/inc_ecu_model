@@ -11,10 +11,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
 
-from pathlib import Path
-from tempfile import TemporaryDirectory
 import logging
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from score.ecu_model.model import ModelRegistry
@@ -124,9 +124,11 @@ class LoadAndParseTest(unittest.TestCase):
             forwarded_levels.append(record.levelno)
             original_emit(handler, record)
 
-        with patch.object(_ForwardToLocalLogger, "emit", capture_level):
-            with self.assertLogs("score.orchestrator", level="INFO"):
-                load_and_parse(franca=ParsingPathInfo(src_files=(fidl,)))
+        with (
+            patch.object(_ForwardToLocalLogger, "emit", capture_level),
+            self.assertLogs("score.orchestrator", level="INFO"),
+        ):
+            load_and_parse(franca=ParsingPathInfo(src_files=(fidl,)))
 
         self.assertEqual(forwarded_levels, [logging.INFO, logging.INFO])
 

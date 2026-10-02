@@ -12,8 +12,8 @@
 # *******************************************************************************
 
 import os
-from pathlib import Path
 import unittest
+from pathlib import Path
 
 from score.ecu_model.data_types.common import DataTypeBase
 from score.ecu_model.data_types.enum import EnumDataType

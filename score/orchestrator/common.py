@@ -15,11 +15,11 @@
 
 from __future__ import annotations
 
+import logging
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-import logging
 from pathlib import Path
-import time
 from typing import ClassVar
 
 from score.ecu_model.model import ModelRegistry

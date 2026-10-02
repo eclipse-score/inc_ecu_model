@@ -21,7 +21,7 @@ from score.parsers.franca_parser.transformer.file_graph_transformer import (
     FrancaFileGraphTransformer,
 )
 
-TEST_DATA_DIRECTORY = Path(__file__).parent / "test_data"
+TEST_DATA_DIRECTORY = Path(__file__).parents[5] / "test_data/franca/file_graph"
 
 
 class FrancaFileGraphTransformerTest(unittest.TestCase):

@@ -16,8 +16,8 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 from score.ecu_model.model import ModelRegistry
 from score.ecu_model.query import datatypes_by_name

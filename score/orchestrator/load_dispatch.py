@@ -15,14 +15,14 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import logging
-from logging.handlers import QueueHandler, QueueListener
 import pickle
 import tempfile
 import time
+from logging.handlers import QueueHandler, QueueListener
 from multiprocessing import get_context
 from multiprocessing.process import BaseProcess
+from pathlib import Path
 from typing import Any
 
 from score.ecu_model.model import ModelRegistry

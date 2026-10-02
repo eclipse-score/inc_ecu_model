@@ -11,8 +11,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
 
-from pathlib import Path
 import unittest
+from pathlib import Path
 
 from score.ecu_model.model import ModelElement, ModelRegistry
 from score.orchestrator.common import Parser, ParsingPathInfo
