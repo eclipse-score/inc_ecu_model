@@ -22,8 +22,8 @@ Currently orchestrated parsers:
 
 | Parser | Input | Adapter |
 | --- | --- | --- |
-| [Franca](../parsers/franca_parser) | `.fidl` / `.fdepl` files | [`FrancaAdapter`](franca_adapter.py) |
-| [Protobuf](../parsers/protobuf_parser) | `protoc` descriptor sets | [`ProtobufAdapter`](protobuf_adapter.py) |
+| [Franca](../parsers/franca_parser) | `.fidl` / `.fdepl` files | [`FrancaAdapter`](parser_adapter.py) |
+| [Protobuf](../parsers/protobuf_parser) | `protoc` descriptor sets | [`ProtobufAdapter`](parser_adapter.py) |
 
 ## Architecture
 
@@ -56,7 +56,7 @@ graph LR
 ## Modules
 
 - [`common.py`](common.py): `ParsingPathInfo` and the `Parser` base class of all adapters.
-- [`franca_adapter.py`](franca_adapter.py), [`protobuf_adapter.py`](protobuf_adapter.py): adapters to the parsers.
+- [`parser_adapter.py`](parser_adapter.py): adapters to the parsers.
 - [`load_dispatch.py`](load_dispatch.py): `load_and_parse()`, process handling and merging.
 - [`run_load_dispatch.py`](run_load_dispatch.py): command line entry point.
 - [`ecu_model_parse.bzl`](ecu_model_parse.bzl): Bazel rule wrapping the command line entry point.

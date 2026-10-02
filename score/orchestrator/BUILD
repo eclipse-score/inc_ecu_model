@@ -19,9 +19,8 @@ py_library(
     name = "orchestrator",
     srcs = [
         "common.py",
-        "franca_adapter.py",
         "load_dispatch.py",
-        "protobuf_adapter.py",
+        "parser_adapter.py",
     ],
     deps = [
         "//score/ecu_model",

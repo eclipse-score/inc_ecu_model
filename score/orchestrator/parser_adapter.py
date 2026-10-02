@@ -11,15 +11,16 @@
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
 
-"""Orchestrator adapter for the Franca parser."""
+"""Adapters between the orchestrator and its IDL parsers."""
 
 from __future__ import annotations
 
+from score.orchestrator.common import Parser
 from score.parsers.franca_parser.parser import FrancaParser
 from score.parsers.franca_parser.transformer.file_graph_transformer import (
     FrancaFileGraphTransformer,
 )
-from score.orchestrator.common import Parser
+from score.parsers.protobuf_parser.api import ProtobufToDataTypeParser
 
 
 class FrancaAdapter(Parser):
@@ -34,3 +35,13 @@ class FrancaAdapter(Parser):
             dependency_files=list(self._path_info.dependency_files),
         )
         FrancaFileGraphTransformer(parser.parse_files()).transform_files()
+
+
+class ProtobufAdapter(Parser):
+    """Parse protoc descriptor sets into ModelRegistry."""
+
+    name = "protobuf"
+
+    def parse(self) -> None:
+        """Parse and resolve the descriptor sets, which creates their model elements."""
+        ProtobufToDataTypeParser.parse(self._path_info.src_files + self._path_info.dependency_files)

@@ -27,8 +27,7 @@ from typing import Any
 
 from score.ecu_model.model import ModelRegistry
 from score.orchestrator.common import Parser, ParsingPathInfo
-from score.orchestrator.franca_adapter import FrancaAdapter
-from score.orchestrator.protobuf_adapter import ProtobufAdapter
+from score.orchestrator.parser_adapter import FrancaAdapter, ProtobufAdapter
 
 _logger = logging.getLogger(__name__)
 
