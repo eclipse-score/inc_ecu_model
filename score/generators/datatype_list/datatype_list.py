@@ -17,14 +17,15 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-import pickle
 from typing import Sequence
 
-from score.ecu_model.data_types.common import DataTypeBase
+from score.ecu_model.model import ModelRegistry
+from score.ecu_model.query import datatypes_by_name
 
 
-def render(datatypes: dict[str, DataTypeBase]) -> str:
-    """Return one "<fully qualified name> <kind> <source>" line per datatype, sorted by name."""
+def render() -> str:
+    """Return one "<fully qualified name> <kind> <source>" line per named datatype, sorted by name."""
+    datatypes = datatypes_by_name()
     return "".join(
         f"{name} {datatype.kind.value} {datatype.source_kind.value}\n" for name, datatype in sorted(datatypes.items())
     )
@@ -32,18 +33,18 @@ def render(datatypes: dict[str, DataTypeBase]) -> str:
 
 def main(arguments: Sequence[str] | None = None) -> None:
     """
-    Read the model pickle and write the datatype list.
+    Load the model and write the datatype list.
 
     Args:
         arguments: Command line arguments; sys.argv[1:] if None.
     """
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--model", required=True, type=Path, help="Pickle written by ecu_model_parse")
+    parser.add_argument("--model", required=True, type=Path, help="Serialized ModelRegistry written by ecu_model_parse")
     parser.add_argument("--output", required=True, type=Path, help="Text file to write")
     parsed = parser.parse_args(arguments)
 
-    datatypes = pickle.loads(parsed.model.read_bytes())["datatypes"]
-    parsed.output.write_text(render(datatypes))
+    ModelRegistry.deserialize(parsed.model.read_bytes())
+    parsed.output.write_text(render())
 
 
 if __name__ == "__main__":

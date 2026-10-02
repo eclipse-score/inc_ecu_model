@@ -13,17 +13,19 @@
 
 import os
 from pathlib import Path
-import pickle
 import unittest
 
 from score.ecu_model.data_types.common import DataTypeBase
 from score.ecu_model.data_types.enum import EnumDataType
 from score.ecu_model.data_types.struct import StructDataType
 from score.ecu_model.data_types.union import UnionDataType
+from score.ecu_model.model import ModelRegistry
+from score.ecu_model.query import datatypes_by_name
 
 
 def load_combined_datatypes() -> dict[str, DataTypeBase]:
-    return pickle.loads(Path(os.environ["COMBINED_MODEL"]).read_bytes())["datatypes"]
+    ModelRegistry.deserialize(Path(os.environ["COMBINED_MODEL"]).read_bytes())
+    return datatypes_by_name()
 
 
 def field_types(struct: StructDataType) -> dict[str, object]:

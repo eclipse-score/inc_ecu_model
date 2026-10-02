@@ -601,6 +601,12 @@ _property_
 
 Return the fully qualified name combining namespace and name.
 
+#### `registry_identity(self) -> tuple[str, str] | None`
+
+_method_
+
+Identify named datatypes across all parser sources.
+
 ## `score.ecu_model.data_types.composite`
 
 ### `DataTypeField`
@@ -906,7 +912,13 @@ This method is called after the model is instantiated and all field validators a
 
 _classmethod_
 
-Pickle the whole registry, i.e. every registered ModelElement.
+Finalize and pickle the whole registry, i.e. every registered ModelElement.
+
+#### `finalize(cls) -> None`
+
+_classmethod_
+
+Run final checks on the whole registry before serialization.
 
 #### `deserialize(cls, data: bytes) -> int`
 
@@ -955,3 +967,16 @@ Base class to be used by all objects tracked in ModelRegistry.elements.
 | --- | --- | --- | --- |
 | `id` | `UUID` | `uuid4()` | Unique identifier of the model element |
 | `description` | `str` | `''` | Human-readable description of the model element |
+
+#### `finalize(self) -> None`
+
+_method_
+
+Perform any finalization actions for the model element.
+This method can be overridden by subclasses to implement custom finalization logic.
+
+#### `registry_identity(self) -> tuple[str, str] | None`
+
+_method_
+
+Return a model-wide identity when this element has a unique name.

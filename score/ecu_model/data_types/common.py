@@ -132,6 +132,10 @@ class DataTypeBase(ModelElement):
             raise ValueError("Data types without an identifier do not have a fully qualified name")
         return QualifiedName((*self.namespace.names, self.name)).format(self.source_kind.separator)
 
+    def registry_identity(self) -> tuple[str, str] | None:
+        """Identify named datatypes across all parser sources."""
+        return ("datatype", self.fully_qualified_name) if self.name is not None else None
+
 
 # Use site of a data type: either a builtin primitive or a direct reference to a declared definition.
 DataType = PrimitiveDataType | DataTypeBase

@@ -14,7 +14,6 @@
 from pathlib import Path
 import unittest
 
-from score.ecu_model.data_types.common import DataTypeBase
 from score.ecu_model.model import ModelElement, ModelRegistry
 from score.orchestrator.common import Parser, ParsingPathInfo
 
@@ -22,10 +21,9 @@ from score.orchestrator.common import Parser, ParsingPathInfo
 class _TwoElementParser(Parser):
     name = "fake"
 
-    def parse(self) -> dict[str, DataTypeBase]:
+    def parse(self) -> None:
         ModelElement()
         ModelElement()
-        return {}
 
 
 class ParserRunTest(unittest.TestCase):

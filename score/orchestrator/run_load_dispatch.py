@@ -11,23 +11,23 @@
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
 
-"""Command line entry point: parse all IDL inputs into one ECU model and pickle the merged datatypes."""
+"""Command line entry point: parse all IDL inputs into one ECU model and write the serialized ModelRegistry."""
 
 from __future__ import annotations
 
 import argparse
 import logging
 from pathlib import Path
-import pickle
 from typing import Sequence
 
+from score.ecu_model.model import ModelRegistry
 from score.orchestrator.common import ParsingPathInfo
 from score.orchestrator.load_dispatch import load_and_parse
 
 
 def main(arguments: Sequence[str] | None = None) -> None:
     """
-    Parse the given inputs with load_and_parse() and write {"datatypes": ...} to the output pickle.
+    Parse the given inputs with load_and_parse() and write ModelRegistry.serialize() to the output file.
 
     Args:
         arguments: Command line arguments; sys.argv[1:] if None.
@@ -44,12 +44,11 @@ def main(arguments: Sequence[str] | None = None) -> None:
         level=parsed.log_level,
         format="%(asctime)s %(levelname)s [%(processName)s] %(name)s: %(message)s",
     )
-    datatypes = load_and_parse(
+    load_and_parse(
         franca=ParsingPathInfo(src_files=tuple(parsed.franca_src), dependency_files=tuple(parsed.franca_dep)),
         protobuf=ParsingPathInfo(src_files=tuple(parsed.descriptor_set)),
     )
-    with parsed.output.open("wb") as output_file:
-        pickle.dump({"datatypes": datatypes}, output_file, protocol=pickle.HIGHEST_PROTOCOL)
+    parsed.output.write_bytes(ModelRegistry.serialize())
 
 
 if __name__ == "__main__":

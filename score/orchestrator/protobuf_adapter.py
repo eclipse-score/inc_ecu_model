@@ -15,16 +15,15 @@
 
 from __future__ import annotations
 
-from score.ecu_model.data_types.common import DataTypeBase
 from score.orchestrator.common import Parser
 from score.parsers.protobuf_parser.api import ProtobufToDataTypeParser
 
 
 class ProtobufAdapter(Parser):
-    """Parse protoc descriptor sets and return their datatypes."""
+    """Parse protoc descriptor sets into ModelRegistry."""
 
     name = "protobuf"
 
-    def parse(self) -> dict[str, DataTypeBase]:
-        """Parse the descriptor sets and return the datatypes by fully qualified name."""
-        return ProtobufToDataTypeParser.parse(self._path_info.src_files + self._path_info.dependency_files)
+    def parse(self) -> None:
+        """Parse and resolve the descriptor sets, which creates their model elements."""
+        ProtobufToDataTypeParser.parse(self._path_info.src_files + self._path_info.dependency_files)

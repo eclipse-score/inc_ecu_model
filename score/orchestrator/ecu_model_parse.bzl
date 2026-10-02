@@ -41,7 +41,7 @@ def _ecu_model_parse_impl(ctx):
 
 ecu_model_parse = rule(
     implementation = _ecu_model_parse_impl,
-    doc = "Runs all parsers in parallel and writes {\"datatypes\": ...} to <name>.pkl.",
+    doc = "Runs all parsers in parallel and writes the serialized ModelRegistry (ModelRegistry.serialize()) to <name>.pkl.",
     attrs = {
         "franca_deps": attr.label_list(
             allow_files = [".fidl", ".fdepl"],

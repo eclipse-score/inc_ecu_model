@@ -57,9 +57,31 @@ class ModelRegistry(BaseModel):
     @classmethod
     def serialize(cls) -> bytes:
         """
-        Pickle the whole registry, i.e. every registered ModelElement.
+        Finalize and pickle the whole registry, i.e. every registered ModelElement.
         """
+
+        """Finalize all elements in the registry before serialization."""
+        for element in ModelRegistry.elements.values():
+            element.finalize()
+
+        """Finalize the registry before serialization."""
+        cls.finalize()
+
         return pickle.dumps(ModelRegistry.elements, protocol=pickle.HIGHEST_PROTOCOL)
+
+    @classmethod
+    def finalize(cls) -> None:
+        """Run final checks on the whole registry before serialization."""
+
+        """Duplicate check for registry identities."""
+        identities: set[tuple[str, str]] = set()
+        for element in ModelRegistry.elements.values():
+            identity = element.registry_identity()
+            if identity is None:
+                continue
+            if identity in identities:
+                raise ValueError(f"Duplicate {identity[0]} name: {identity[1]}")
+            identities.add(identity)
 
     @classmethod
     def deserialize(cls, data: bytes) -> int:
@@ -128,6 +150,16 @@ class ModelElement(ModelRegistry):
     # uuid4 draws from os.urandom, so IDs stay unique across (also forked) processes; collision odds are negligible.
     id: UUID = Field(default_factory=uuid4, description="Unique identifier of the model element")
     description: str = Field(default="", description="Human-readable description of the model element")
+
+    def finalize(self) -> None:
+        """
+        Perform any finalization actions for the model element.
+        This method can be overridden by subclasses to implement custom finalization logic.
+        """
+
+    def registry_identity(self) -> tuple[str, str] | None:
+        """Return a model-wide identity when this element has a unique name."""
+        return None
 
     def __str__(self) -> str:
         return f"{self.__class__.__name__}(id={self.id}, description={self.description})"

@@ -38,20 +38,20 @@ graph LR
   Dispatch -->|"(2) start"| Children
   FrancaPickle -->|"(3) join + load"| Dispatch
   ProtobufPickle -->|"(3) join + load"| Dispatch
-  Dispatch -->|"(4) merge"| Model[/"datatypes + ModelRegistry"/]
+  Dispatch -->|"(4) merge"| Model[/"ModelRegistry"/]
 ```
 
 1. The caller describes the input files of each parser with a `ParsingPathInfo` (`src_files`,
    `dependency_files`). Parsers without source files are skipped.
 2. Each parser runs in its own child process. The `spawn` start method gives every child a fresh interpreter, so its
    `ModelRegistry` starts empty.
-3. A child writes exactly one pickle into a temporary directory, either
-   `{"datatypes": ..., "registry": ...}` or `{"error": ...}`. Datatypes and registry are pickled as one object, so
-   references between them stay intact. Result files are used instead of IPC queues, since parse results can be large.
-4. The main process joins the children, loads the pickles and
-   - raises `RuntimeError` naming every failed parser,
-   - raises `ValueError` if a fully qualified name is defined by more than one parser,
-   - otherwise merges all datatypes into one dict and adds all model elements via `ModelRegistry.merge()`.
+3. A child writes exactly one pickle into a temporary directory, either `{"registry": ...}` with all model elements
+   the parser created or `{"error": ...}`. Pickling all elements as one object keeps the references between them
+   intact. Result files are used instead of IPC queues, since parse results can be large.
+4. The main process joins the children, loads the pickles and adds all model elements to its `ModelRegistry` via
+  `ModelRegistry.merge()`. Parser failures raise `RuntimeError`. Before writing the output, `ModelRegistry.serialize()`
+  calls `finalize()`, which checks model-wide identities (including duplicate datatype names) and raises `ValueError`
+  if the model is invalid.
 
 ## Modules
 
@@ -77,7 +77,10 @@ ecu_model_parse(
 )
 ```
 
-The rule writes `{"datatypes": ...}` to `my_model.pkl`. See [`test/BUILD`](test/BUILD) for a complete example.
+The rule writes the whole model, i.e. `ModelRegistry.serialize()`, to `my_model.pkl`. Load it with
+`ModelRegistry.deserialize()`; `score.ecu_model.query.datatypes_by_name()` indexes named datatypes by their fully
+qualified names and rejects duplicates. Inline types without names are excluded. See
+[`test/BUILD`](test/BUILD) for a complete example.
 
 ### Full chain: parse and generate
 
@@ -110,8 +113,9 @@ integration.shared.Payload struct protobuf
 ```
 
 The complete, tested chain is in [`generators/datatype_list/test/BUILD`](../generators/datatype_list/test/BUILD).
-A new generator needs a Python executable reading `pickle.loads(model)["datatypes"]` and a rule running it on the
-`model` file, following [`datatype_list.bzl`](../generators/datatype_list/datatype_list.bzl).
+A new generator needs a Python executable that loads the `model` file with `ModelRegistry.deserialize()` and uses
+model queries such as `datatypes_by_name()` to access its content, plus a rule running it. See
+[`datatype_list.bzl`](../generators/datatype_list/datatype_list.bzl).
 
 ### Command line
 
@@ -127,11 +131,13 @@ bazel run //score/orchestrator:run_load_dispatch -- \
 ```python
 from score.orchestrator.common import ParsingPathInfo
 from score.orchestrator.load_dispatch import load_and_parse
+from score.ecu_model.query import datatypes_by_name
 
-datatypes = load_and_parse(
+load_and_parse(
     franca=ParsingPathInfo(src_files=(root_fidl,), dependency_files=(imported_fidl,)),
     protobuf=ParsingPathInfo(src_files=(descriptor_set,)),
 )
+datatypes = datatypes_by_name()
 ```
 
 ## Dependency files
@@ -147,13 +153,12 @@ All logging uses the standard `logging` module and is configured by the caller o
   model elements) of every parser.
 - Spawned children inherit no logging configuration. They send all records through a queue to the main process, which
   re-emits them through the logger of the same name, so its levels and handlers apply.
-- `load_and_parse()` logs the total duration after merging.
+- `load_and_parse()` logs the number of merged model elements and the total duration.
 
 ## Adding a parser
 
-1. Implement a subclass of `Parser` in a new adapter module: set `name` and implement `parse()`, returning the
-   datatypes by fully qualified name. Model elements created while parsing are shipped to the main process
-   automatically.
+1. Implement a subclass of `Parser` in a new adapter module: set `name` and implement `parse()`, which only has to
+   create model elements. They are tracked in `ModelRegistry` and shipped to the main process automatically.
 2. Add a keyword argument for its `ParsingPathInfo` to `load_and_parse()` and add the adapter to its candidates.
 3. Extend [`run_load_dispatch.py`](run_load_dispatch.py) and [`ecu_model_parse.bzl`](ecu_model_parse.bzl) with the
    new inputs.

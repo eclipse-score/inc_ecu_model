@@ -19,5 +19,8 @@ py_binary(
     name = "datatype_list",
     srcs = ["datatype_list.py"],
     main = "datatype_list.py",
-    deps = ["//score/ecu_model/data_types"],
+    deps = [
+        "//score/ecu_model",
+        "//score/ecu_model:query",
+    ],
 )

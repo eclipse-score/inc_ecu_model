@@ -25,10 +25,7 @@ py_library(
     ],
     deps = [
         "//score/ecu_model",
-        "//score/ecu_model/data_types",
         "//score/parsers/franca_parser",
-        "//score/parsers/franca_parser/model",
-        "//score/parsers/franca_parser/transformer",
         "//score/parsers/protobuf_parser",
     ],
 )

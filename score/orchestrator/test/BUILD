@@ -27,7 +27,8 @@ py_test(
     main = "adapter_test.py",
     deps = [
         ":inputs",
-        "//score/ecu_model/data_types",
+        "//score/ecu_model",
+        "//score/ecu_model:query",
         "//score/orchestrator",
     ],
 )
@@ -38,7 +39,6 @@ py_test(
     main = "common_test.py",
     deps = [
         "//score/ecu_model",
-        "//score/ecu_model/data_types",
         "//score/orchestrator",
     ],
 )
@@ -50,6 +50,7 @@ py_test(
     deps = [
         ":inputs",
         "//score/ecu_model",
+        "//score/ecu_model:query",
         "//score/orchestrator",
     ],
 )
@@ -94,5 +95,9 @@ py_test(
     data = [":combined_model"],
     env = {"COMBINED_MODEL": "$(rootpath :combined_model)"},
     main = "ecu_model_parse_test.py",
-    deps = ["//score/ecu_model/data_types"],
+    deps = [
+        "//score/ecu_model",
+        "//score/ecu_model:query",
+        "//score/ecu_model/data_types",
+    ],
 )

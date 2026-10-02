@@ -13,11 +13,17 @@
 
 import pickle
 import unittest
+from unittest.mock import patch
 from uuid import UUID, uuid4
 
 from pydantic import ValidationError
 
+from score.ecu_model.data_types.array import ArrayDataType
+from score.ecu_model.data_types.common import DataTypeSource
+from score.ecu_model.data_types.primitives import PrimitiveDataType
+from score.ecu_model.data_types.struct import StructDataType
 from score.ecu_model.model import ModelElement, ModelRegistry
+from score.ecu_model.query import datatypes_by_name
 
 
 class TestModelRegistry(unittest.TestCase):
@@ -84,6 +90,23 @@ class TestSerialization(unittest.TestCase):
             restored = ModelRegistry.elements[element.id]
             self.assertIsNot(restored, element)
             self.assertEqual(restored.description, element.description)
+
+    def test_serialize_given_element_expect_finalize_called_before_pickle(self) -> None:
+        element = ModelElement()
+
+        with patch.object(ModelElement, "finalize", autospec=True) as finalize:
+            finalize.side_effect = lambda instance: setattr(instance, "description", "finalized")
+            blob = ModelRegistry.serialize()
+
+        finalize.assert_called_once_with(element)
+        self.assertEqual(pickle.loads(blob)[element.id].description, "finalized")
+
+    def test_serialize_given_failing_element_finalize_expect_error(self) -> None:
+        ModelElement()
+
+        with patch.object(ModelElement, "finalize", side_effect=ValueError("invalid element")):
+            with self.assertRaisesRegex(ValueError, "invalid element"):
+                ModelRegistry.serialize()
 
     def test_deserialize_detaches_pre_existing_instances(self) -> None:
         original = ModelElement(description="original")
@@ -155,6 +178,58 @@ class TestMerge(unittest.TestCase):
         ModelRegistry.merge(restored["registry"])
 
         self.assertIs(restored["datatypes"]["child"], ModelRegistry.elements[element.id])
+
+
+class TestDatatypeQueries(unittest.TestCase):
+    def setUp(self) -> None:
+        self._saved_registry = dict(ModelRegistry.elements)
+        ModelRegistry.elements.clear()
+
+    def tearDown(self) -> None:
+        ModelRegistry.elements.clear()
+        ModelRegistry.elements.update(self._saved_registry)
+
+    def test_given_mixed_registry_expect_only_named_datatypes_indexed(self) -> None:
+        datatype = StructDataType(name="Value", namespace="example", source_kind=DataTypeSource.PROTOBUF)
+        ArrayDataType(data_type=PrimitiveDataType.UINT8, is_inline=True, source_kind=DataTypeSource.PROTOBUF)
+        ModelElement()
+
+        result = datatypes_by_name()
+
+        self.assertEqual(result, {"example.Value": datatype})
+        self.assertIs(result["example.Value"], datatype)
+
+    def test_given_supplied_elements_expect_registry_untouched(self) -> None:
+        first = StructDataType(name="First", source_kind=DataTypeSource.FRANCA)
+        second = StructDataType(name="Second", source_kind=DataTypeSource.FRANCA)
+
+        result = datatypes_by_name((first,))
+
+        self.assertEqual(result, {"First": first})
+        self.assertIn(second.id, ModelRegistry.elements)
+
+    def test_given_duplicate_name_expect_value_error(self) -> None:
+        StructDataType(name="Value", namespace="example", source_kind=DataTypeSource.PROTOBUF)
+        StructDataType(name="Value", namespace="example", source_kind=DataTypeSource.PROTOBUF)
+
+        with self.assertRaisesRegex(ValueError, "Duplicate datatype name: example.Value"):
+            datatypes_by_name()
+
+    def test_given_duplicate_datatypes_expect_finalize_and_serialize_to_reject_model(self) -> None:
+        StructDataType(name="Value", namespace="example", source_kind=DataTypeSource.FRANCA)
+        StructDataType(name="Value", namespace="example", source_kind=DataTypeSource.PROTOBUF)
+
+        with self.assertRaisesRegex(ValueError, "Duplicate datatype name: example.Value"):
+            ModelRegistry.finalize()
+        with self.assertRaisesRegex(ValueError, "Duplicate datatype name: example.Value"):
+            ModelRegistry.serialize()
+
+    def test_given_anonymous_types_expect_finalize_to_accept_model(self) -> None:
+        ArrayDataType(data_type=PrimitiveDataType.UINT8, is_inline=True, source_kind=DataTypeSource.PROTOBUF)
+        ArrayDataType(data_type=PrimitiveDataType.UINT8, is_inline=True, source_kind=DataTypeSource.PROTOBUF)
+
+        ModelRegistry.finalize()
+        self.assertEqual(ModelRegistry.deserialize(ModelRegistry.serialize()), 2)
 
 
 if __name__ == "__main__":

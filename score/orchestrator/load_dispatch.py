@@ -25,7 +25,6 @@ from multiprocessing import get_context
 from multiprocessing.process import BaseProcess
 from typing import Any
 
-from score.ecu_model.data_types.common import DataTypeBase
 from score.ecu_model.model import ModelRegistry
 from score.orchestrator.common import Parser, ParsingPathInfo
 from score.orchestrator.franca_adapter import FrancaAdapter
@@ -47,8 +46,8 @@ def _run_parser(parser_class: type[Parser], path_info: ParsingPathInfo, result_p
     """
     Child process entry point: run one parser and pickle its outcome.
 
-    The payload is either {"datatypes": ..., "registry": ...} with the elements this parser created, or
-    {"error": ...} if parsing failed. Errors are reported via the payload so the parent can name the failing parser.
+    The payload is either {"registry": ...} with the elements this parser created, or {"error": ...} if parsing
+    failed. Errors are reported via the payload so the parent can name the failing parser.
 
     Args:
         parser_class: Adapter to instantiate.
@@ -62,11 +61,10 @@ def _run_parser(parser_class: type[Parser], path_info: ParsingPathInfo, result_p
     root_logger.setLevel(logging.DEBUG)
     try:
         known_ids = set(ModelRegistry.elements)
-        datatypes = parser_class(path_info).run()
+        parser_class(path_info).run()
         # A forked child inherits the parent's registry; ship only what this parser created.
         created = {uuid: element for uuid, element in ModelRegistry.elements.items() if uuid not in known_ids}
-        # One pickle for both keeps the datatypes and the registry pointing to the same objects.
-        payload: dict[str, Any] = {"datatypes": datatypes, "registry": created}
+        payload: dict[str, Any] = {"registry": created}
     except Exception as error:
         payload = {"error": f"{type(error).__name__}: {error}"}
     with result_path.open("wb") as result_file:
@@ -83,7 +81,7 @@ def _collect(name: str, process: BaseProcess, result_path: Path) -> dict[str, An
         result_path: File the process writes its payload to.
 
     Returns:
-        The successful payload with "datatypes" and "registry".
+        The successful payload with "registry".
 
     Raises:
         RuntimeError: If the process crashed, wrote no payload, or reported a parser error.
@@ -100,49 +98,27 @@ def _collect(name: str, process: BaseProcess, result_path: Path) -> dict[str, An
     return payload
 
 
-def _merge(payloads: list[dict[str, Any]]) -> dict[str, DataTypeBase]:
-    """
-    Combine the datatypes of all payloads and add their elements to ModelRegistry.
-
-    Args:
-        payloads: Successful payloads as returned by _collect().
-
-    Returns:
-        The datatypes of all payloads by fully qualified name.
-
-    Raises:
-        ValueError: If a fully qualified name occurs in more than one payload. ModelRegistry is left unchanged then.
-    """
-    datatypes: dict[str, DataTypeBase] = {}
-    for payload in payloads:
-        duplicates = datatypes.keys() & payload["datatypes"].keys()
-        if duplicates:
-            raise ValueError(f"Datatypes defined by more than one parser: {', '.join(sorted(duplicates))}")
-        datatypes.update(payload["datatypes"])
+def _merge(payloads: list[dict[str, Any]]) -> None:
+    """Add all parser results to the model registry."""
     for payload in payloads:
         ModelRegistry.merge(payload["registry"])
-    return datatypes
 
 
 def load_and_parse(
     franca: ParsingPathInfo = ParsingPathInfo(),
     protobuf: ParsingPathInfo = ParsingPathInfo(),
-) -> dict[str, DataTypeBase]:
+) -> None:
     """
-    Run each parser that has source files in its own child process and merge the results.
-
-    All model elements created by the parsers are added to ModelRegistry.
+    Run each parser that has source files in its own child process and add all model elements they create to
+    ModelRegistry.
 
     Args:
         franca: FIDL/FDEPL files for the Franca parser.
         protobuf: protoc descriptor sets for the Protobuf parser.
 
-    Returns:
-        The datatypes of all parsers by fully qualified name.
-
     Raises:
         RuntimeError: If any parser fails.
-        ValueError: If more than one parser defines the same fully qualified name.
+        ValueError: If model element IDs collide while merging parser results.
     """
     candidates: tuple[tuple[type[Parser], ParsingPathInfo], ...] = (
         (FrancaAdapter, franca),
@@ -184,6 +160,10 @@ def load_and_parse(
         log_listener.stop()
     if errors:
         raise RuntimeError(f"Parser dispatch failed: {'; '.join(errors)}")
-    datatypes = _merge(payloads)
-    _logger.info("Merged results of %d parser(s) in %.2f s", len(payloads), time.perf_counter() - start)
-    return datatypes
+    _merge(payloads)
+    _logger.info(
+        "Merged %d model element(s) of %d parser(s) in %.2f s",
+        sum(len(payload["registry"]) for payload in payloads),
+        len(payloads),
+        time.perf_counter() - start,
+    )

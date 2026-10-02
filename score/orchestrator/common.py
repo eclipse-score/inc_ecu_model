@@ -22,7 +22,6 @@ from pathlib import Path
 import time
 from typing import ClassVar
 
-from score.ecu_model.data_types.common import DataTypeBase
 from score.ecu_model.model import ModelRegistry
 
 _logger = logging.getLogger(__name__)
@@ -56,7 +55,7 @@ class Parser(ABC):
     def __init__(self, path_info: ParsingPathInfo) -> None:
         self._path_info = path_info
 
-    def run(self) -> dict[str, DataTypeBase]:
+    def run(self) -> None:
         """Call parse() and log its inputs, its duration and the number of model elements it created."""
         _logger.info(
             "Starting %s parser with %d source file(s) and %d dependency file(s)",
@@ -71,15 +70,14 @@ class Parser(ABC):
         )
         elements_before = len(ModelRegistry.elements)
         start = time.perf_counter()
-        result = self.parse()
+        self.parse()
         _logger.info(
             "%s parser finished after %.2f s, created %d model element(s)",
             self.name,
             time.perf_counter() - start,
             len(ModelRegistry.elements) - elements_before,
         )
-        return result
 
     @abstractmethod
-    def parse(self) -> dict[str, DataTypeBase]:
-        """Parse the input files and return the datatypes by fully qualified name."""
+    def parse(self) -> None:
+        """Parse the input files; every model element created on the way is tracked in ModelRegistry."""

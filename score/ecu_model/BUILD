@@ -22,6 +22,16 @@ py_library(
 )
 
 py_library(
+    name = "query",
+    srcs = ["query.py"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":ecu_model",
+        "//score/ecu_model/data_types",
+    ],
+)
+
+py_library(
     name = "common",
     srcs = [
         "common/__init__.py",
