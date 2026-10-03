@@ -29,7 +29,6 @@ class UnionDataType(CompositeDataType):
     @classmethod
     def _reject_optional_fields(cls, fields: tuple[DataTypeField, ...]) -> tuple[DataTypeField, ...]:
         """Reject optional fields, as union fields are mutually exclusive and therefore optional by definition."""
-        """This is some BMW specific requriement and should not made public"""
         for field in fields:
             if field.optional:
                 raise ValueError("union fields must not be declared optional")

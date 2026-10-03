@@ -17,7 +17,11 @@ from uuid import UUID, uuid4
 
 from pydantic import ValidationError
 
-from score.ecu_model.model import ModelElement, ModelRegistry
+from score.ecu_model.model import (
+    CustomModelElement,
+    ModelElement,
+    ModelRegistry,
+)
 
 
 class TestModelRegistry(unittest.TestCase):
@@ -63,6 +67,25 @@ class TestModelElement(unittest.TestCase):
         element = ModelElement()
         with self.assertRaises(ValidationError):
             element.id = "not-a-uuid"
+
+
+class SampleCustomElement(CustomModelElement):
+    """Concrete custom model element for testing."""
+
+    tag: str = "custom"
+
+
+class TestCustomModelElement(unittest.TestCase):
+    def test_custom_model_element_rejects_direct_instantiation(self) -> None:
+        with self.assertRaisesRegex(TypeError, "CustomModelElement is abstract"):
+            CustomModelElement()
+
+    def test_concrete_custom_element_instantiation_and_registration(self) -> None:
+        elem = SampleCustomElement(tag="oem_special")
+        self.assertIsInstance(elem, ModelElement)
+        self.assertIsInstance(elem, CustomModelElement)
+        self.assertIn(elem.id, ModelRegistry.elements)
+        self.assertEqual(elem.tag, "oem_special")
 
 
 class TestSerialization(unittest.TestCase):

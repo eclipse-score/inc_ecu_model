@@ -17,6 +17,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, TypeAdapter, ValidationError
 
 from score.ecu_model.data_types.common import (
+    CustomDataType,
     DataType,
     DataTypeBase,
     DataTypeKind,
@@ -96,6 +97,17 @@ class TestDataTypeBaseCommon(unittest.TestCase):
             )
         self.assertIn("Input should be a valid string", str(ctx.exception))
 
+    def test_custom_data_type_rejects_direct_instantiation(self) -> None:
+        with self.assertRaisesRegex(TypeError, "CustomDataType is abstract"):
+            CustomDataType()
+
+
+class SampleCustomType(CustomDataType):
+    """Custom pluggable data type used to test injection as DataType."""
+
+    name: str
+    payload_type: DataType
+
 
 class TestTypeRef(unittest.TestCase):
     adapter = TypeAdapter(DataType)
@@ -110,6 +122,13 @@ class TestTypeRef(unittest.TestCase):
 
         self.assertIs(ref, definition)
 
+    def test_custom_data_type_is_referenced_by_direct_instance(self) -> None:
+        custom_type = SampleCustomType(name="VehicleSpeedType", payload_type=PrimitiveDataType.FLOAT)
+
+        ref = self.adapter.validate_python(custom_type)
+
+        self.assertIs(ref, custom_type)
+
     def test_unknown_primitive_name_is_rejected(self) -> None:
         with self.assertRaises(ValidationError):
             self.adapter.validate_python("uint24")
@@ -122,6 +141,13 @@ class TestDirectDataTypeReferences(unittest.TestCase):
         member = StructMember(identifier="position", type=definition)
 
         self.assertIs(member.type, definition)
+
+    def test_custom_data_type_can_be_used_as_struct_member_type(self) -> None:
+        custom_type = SampleCustomType(name="VehicleSpeedType", payload_type=PrimitiveDataType.FLOAT)
+
+        member = StructMember(identifier="speed_type", type=custom_type)
+
+        self.assertIs(member.type, custom_type)
 
 
 class TestPickleRoundTrip(unittest.TestCase):
