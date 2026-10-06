@@ -19,9 +19,11 @@ from score.ecu_model.architecture.activity import Activity
 from score.ecu_model.architecture.application import Application
 from score.ecu_model.common.version import Version
 from score.ecu_model.communication.binding import CommunicationBinding, NetworkKind, ProtocolKind
-from score.ecu_model.communication.service_interface import InterfaceDefinition, ServiceInterface
-from score.ecu_model.communication.service_port import ProvidedServicePort
+from score.ecu_model.communication.service_interface import InterfaceDefinition, Method, ServiceInterface
+from score.ecu_model.communication.service_port import ProvidedServicePort, RequiredServicePort
 from score.ecu_model.data_types.identifier import QualifiedName
+from score.ecu_model.diagnostics.dtc import DiagnosticTroubleCode, DtcServiceBinding
+from score.ecu_model.diagnostics.job import DiagnosticJob, DiagnosticJobBinding, DiagnosticServiceType
 from score.ecu_model.model import ModelRegistry
 
 
@@ -40,6 +42,18 @@ class TestApplication(unittest.TestCase):
                 namespace="deployment",
                 design_element=InterfaceDefinition(name="VehicleState", version=Version()),
                 service_id=42,
+            ),
+            binding=CommunicationBinding(protocol=ProtocolKind.ARA_COM, network=NetworkKind.SOMEIP),
+        )
+
+    def _required_service_port(self) -> RequiredServicePort:
+        return RequiredServicePort(
+            name="VehicleStateConsumer",
+            interface=ServiceInterface(
+                name="VehicleStateDeployment",
+                namespace="deployment",
+                design_element=InterfaceDefinition(name="VehicleState", version=Version()),
+                service_id=43,
             ),
             binding=CommunicationBinding(protocol=ProtocolKind.ARA_COM, network=NetworkKind.SOMEIP),
         )
@@ -81,6 +95,54 @@ class TestApplication(unittest.TestCase):
                 activities=[self._activity()],
                 deployment_properties={"  ": "value"},
             )
+
+    def test_application_rejects_diagnostic_binding_to_unrequired_port(self) -> None:
+        with self.assertRaises(ValidationError):
+            Application(
+                name="DrivingApp",
+                activities=[self._activity()],
+                diagnostic_bindings=[
+                    DtcServiceBinding(
+                        trouble_code=DiagnosticTroubleCode(trouble_code=0x7F9184),
+                        required_service_port=self._required_service_port(),
+                        diagnostic_event_name="VehicleStateFailure",
+                        diagnostic_event_instance_id=33764,
+                    )
+                ],
+            )
+
+    def test_application_offers_ecu_job_through_provided_port(self) -> None:
+        vehicle_speed_interface = InterfaceDefinition(
+            name="VehicleSpeedInterface",
+            version=Version(),
+            methods={"Read": Method(name="Read"), "Cancel": Method(name="Cancel")},
+        )
+        service_port = ProvidedServicePort(
+            name="VehicleSpeedProvider",
+            interface=ServiceInterface(
+                name="VehicleSpeedDeployment",
+                design_element=vehicle_speed_interface,
+                method_deployment_properties={"Read": {}, "Cancel": {}},
+            ),
+            binding=CommunicationBinding(protocol=ProtocolKind.ARA_COM, network=NetworkKind.SOMEIP),
+        )
+        job = DiagnosticJob(
+            name="VehicleSpeed",
+            interface=vehicle_speed_interface,
+            service_type=DiagnosticServiceType.READ_DATA_BY_IDENTIFIER,
+            service_id=0x6F07,
+        )
+        job_binding = DiagnosticJobBinding(diagnostic_job=job, service_port=service_port)
+
+        application = Application(
+            name="DrivingApp",
+            activities=[self._activity()],
+            provided_service_ports=[service_port],
+            diagnostic_job_bindings=[job_binding],
+        )
+
+        self.assertIs(application.diagnostic_job_bindings[0].diagnostic_job, job)
+        self.assertIs(application.diagnostic_job_bindings[0].service_port, service_port)
 
 
 if __name__ == "__main__":

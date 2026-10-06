@@ -27,6 +27,7 @@ py_library(
         "//score/ecu_model:common",
         "//score/ecu_model/communication",
         "//score/ecu_model/data_types",
+        "//score/ecu_model/diagnostics",
         "@pypi//pydantic",
     ],
 )

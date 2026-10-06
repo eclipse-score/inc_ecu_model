@@ -46,6 +46,10 @@ classDiagram
     CompositeDataType <|-- StructDataType
     DataTypeBase <|-- TypedefDataType
     CompositeDataType <|-- UnionDataType
+    ModelElement <|-- DiagnosticTroubleCode
+    ModelElement <|-- DtcServiceBinding
+    ModelElement <|-- DiagnosticJob
+    ModelElement <|-- DiagnosticJobBinding
     ModelRegistry <|-- ModelElement
     Activity --> Identifier : name
     Activity --> QualifiedName : namespace
@@ -58,9 +62,13 @@ classDiagram
     Application --> Activity : activities
     Application --> ProvidedServicePort : provided_service_ports
     Application --> RequiredServicePort : required_service_ports
+    Application --> DiagnosticJobBinding : diagnostic_job_bindings
+    Application --> DtcServiceBinding : diagnostic_bindings
     Ecu --> Identifier : name
     Ecu --> QualifiedName : namespace
     Ecu --> Application : applications
+    Ecu --> DiagnosticTroubleCode : diagnostic_trouble_codes
+    Ecu --> DiagnosticJob : diagnostic_jobs
     CommunicationBinding --> ProtocolKind : protocol
     CommunicationBinding --> NetworkKind : network
     PortDefinition --> InterfaceDefinition : interface_design
@@ -118,6 +126,15 @@ classDiagram
     TypedefDataType --> Identifier : data_type
     TypedefDataType --> PrimitiveDataType : data_type
     TypedefDataType --> QualifiedName : data_type
+    DiagnosticTroubleCode --> DiagnosticJob : snapshots
+    DtcServiceBinding --> DiagnosticTroubleCode : trouble_code
+    DtcServiceBinding --> RequiredServicePort : required_service_port
+    DtcServiceBinding --> Identifier : diagnostic_event_name
+    DiagnosticJob --> Identifier : name
+    DiagnosticJob --> InterfaceDefinition : interface
+    DiagnosticJob --> DiagnosticServiceType : service_type
+    DiagnosticJobBinding --> DiagnosticJob : diagnostic_job
+    DiagnosticJobBinding --> ProvidedServicePort : service_port
 ```
 
 ## `score.ecu_model.architecture.activity`
@@ -162,6 +179,8 @@ A process grouping one or more activities.
 | `activities` | list[[`Activity`](#activity)] | _required_ | Activities contained in this application |
 | `provided_service_ports` | list[[`ProvidedServicePort`](#providedserviceport)] | `list()` | Service ports provided by this application |
 | `required_service_ports` | list[[`RequiredServicePort`](#requiredserviceport)] | `list()` | Service ports required by this application |
+| `diagnostic_job_bindings` | list[[`DiagnosticJobBinding`](#diagnosticjobbinding)] | `list()` | ECU diagnostic jobs offered through this application's service ports |
+| `diagnostic_bindings` | list[[`DtcServiceBinding`](#dtcservicebinding)] | `list()` | Associations between ECU DTCs and required service ports of this application |
 | `deployment_properties` | `dict[str, object]` | `dict()` | Deployment metadata attached to this application |
 
 **Validators**
@@ -170,6 +189,7 @@ A process grouping one or more activities.
 | --- | --- | --- | --- |
 | `_validate_property_names` | field, after | `deployment_properties` | Validates `deployment_properties`. |
 | `_validate_unique_activity_names` | model, after | _the whole model_ | Validates the model as a whole. |
+| `_validate_diagnostic_references` | model, after | _the whole model_ | Validates the model as a whole. |
 
 #### `fully_qualified_name`
 
@@ -192,6 +212,8 @@ A deployment target grouping the applications that run on it.
 | `name` | [`Identifier`](#identifier) | _required_ | Identifier of the ECU, unique within the owning system |
 | `namespace` | [`QualifiedName`](#qualifiedname) | `QualifiedName()` | Namespace in which the ECU is declared |
 | `applications` | list[[`Application`](#application)] | _required_ | Applications deployed on this ECU |
+| `diagnostic_trouble_codes` | list[[`DiagnosticTroubleCode`](#diagnostictroublecode)] | `list()` | Diagnostic trouble codes defined for this ECU. Triggering apps use DtcServiceBinding to attach to a specific dem event |
+| `diagnostic_jobs` | list[[`DiagnosticJob`](#diagnosticjob)] | `list()` | Diagnostic jobs defined for this ECU and offered by applications |
 | `deployment_properties` | `dict[str, object]` | `dict()` | Deployment metadata attached to this ECU |
 
 **Validators**
@@ -200,6 +222,7 @@ A deployment target grouping the applications that run on it.
 | --- | --- | --- | --- |
 | `_validate_property_names` | field, after | `deployment_properties` | Validates `deployment_properties`. |
 | `_validate_unique_application_names` | model, after | _the whole model_ | Validates the model as a whole. |
+| `_validate_diagnostic_trouble_codes` | model, after | _the whole model_ | Validates the model as a whole. |
 
 #### `fully_qualified_name`
 
@@ -871,6 +894,114 @@ A declared union data type whose fields are mutually exclusive,  e.g. a Franca u
 | Validator | Kind | Applies to | Description |
 | --- | --- | --- | --- |
 | `_reject_optional_fields` | field, after | `fields` | Reject optional fields, as union fields are mutually exclusive and therefore optional by definition. |
+
+## `score.ecu_model.diagnostics.dtc`
+
+### `DiagnosticTroubleCode`
+
+Inherits from [`ModelElement`](#modelelement).
+
+Diagnostic trouble code declared for an ECU, with its environmental-data snapshots.
+
+**Fields**
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `trouble_code` | `int` | _required_ | 24-bit DTC number, conventionally written in hex, e.g. 0x7F9184 |
+| `snapshots` | list[[`DiagnosticJob`](#diagnosticjob)] | `list()` | Data identifier jobs whose data is stored as environmental data with this DTC |
+| `deployment_properties` | `dict[str, object]` | `dict()` | Deployment metadata attached to this DTC |
+
+**Validators**
+
+| Validator | Kind | Applies to | Description |
+| --- | --- | --- | --- |
+| `_validate_snapshots` | model, after | _the whole model_ | Validates the model as a whole. |
+
+### `DtcServiceBinding`
+
+Inherits from [`ModelElement`](#modelelement).
+
+Association between an ECU DTC and an application's required service port.
+
+**Fields**
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `trouble_code` | [`DiagnosticTroubleCode`](#diagnostictroublecode) | _required_ |  |
+| `required_service_port` | [`RequiredServicePort`](#requiredserviceport) | _required_ |  |
+| `diagnostic_event_name` | [`Identifier`](#identifier) | _required_ | Name of the diagnostic event associated with this DTC service binding, provider specific since multiple producers may trigger the same event/dtc. |
+| `diagnostic_event_instance_id` | `int` | _required_ | Numeric identifier of the diagnostic event, unique within the ECU |
+
+## `score.ecu_model.diagnostics.job`
+
+### `DiagnosticServiceType`
+
+Inherits from `str`, `Enum`.
+
+UDS service implemented by a diagnostic job.
+
+**Members**
+
+| Member | Value |
+| --- | --- |
+| `CLEAR_DIAGNOSTIC_INFORMATION` | `'ClearDiagnosticInformation'` |
+| `COMMUNICATION_CONTROL` | `'CommunicationControl'` |
+| `CONTROL_DTC_SETTING` | `'ControlDTCSetting'` |
+| `DIAGNOSTIC_SESSION_CONTROL` | `'DiagnosticSessionControl'` |
+| `ECU_RESET` | `'EcuReset'` |
+| `READ_DATA_BY_IDENTIFIER` | `'ReadDataByIdentifier'` |
+| `READ_DTC_INFORMATION` | `'ReadDTCinformation'` |
+| `READ_WRITE_DATA_BY_IDENTIFIER` | `'ReadWriteDataByIdentifier'` |
+| `REQUEST_DOWNLOAD` | `'RequestDownload'` |
+| `REQUEST_FILE_TRANSFER` | `'RequestFileTransfer'` |
+| `REQUEST_TRANSFER_EXIT` | `'RequestTransferExit'` |
+| `REQUEST_UPLOAD` | `'RequestUpload'` |
+| `RESPONSE_ON_EVENT` | `'ResponseOnEvent'` |
+| `ROUTINE_CONTROL` | `'RoutineControl'` |
+| `TESTER_PRESENT` | `'TesterPresent'` |
+| `TRANSFER_DATA` | `'TransferData'` |
+| `WRITE_DATA_BY_IDENTIFIER` | `'WriteDataByIdentifier'` |
+
+### `DiagnosticJob`
+
+Inherits from [`ModelElement`](#modelelement).
+
+ECU-owned diagnostic job, implemented by one service interface.
+
+**Fields**
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `name` | [`Identifier`](#identifier) | _required_ |  |
+| `interface` | [`InterfaceDefinition`](#interfacedefinition) | _required_ | Service interface whose methods implement this job |
+| `service_type` | [`DiagnosticServiceType`](#diagnosticservicetype) | _required_ |  |
+| `service_id` | `int` | _required_ | UDS identifier of the job, e.g. the data identifier of a ReadDataByIdentifier job |
+| `deployment_properties` | `dict[str, object]` | `dict()` | Deployment metadata attached to this job, e.g. sessions and security access |
+
+**Validators**
+
+| Validator | Kind | Applies to | Description |
+| --- | --- | --- | --- |
+| `_validate_property_names` | field, after | `deployment_properties` | Validates `deployment_properties`. |
+
+### `DiagnosticJobBinding`
+
+Inherits from [`ModelElement`](#modelelement).
+
+Bind an ECU diagnostic job to the service port through which an application offers it.
+
+**Fields**
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `diagnostic_job` | [`DiagnosticJob`](#diagnosticjob) | _required_ |  |
+| `service_port` | [`ProvidedServicePort`](#providedserviceport) | _required_ |  |
+
+**Validators**
+
+| Validator | Kind | Applies to | Description |
+| --- | --- | --- | --- |
+| `_validate_interface` | model, after | _the whole model_ | Validates the model as a whole. |
 
 ## `score.ecu_model.model`
 

@@ -23,6 +23,7 @@ py_binary(
         "//score/ecu_model/architecture",
         "//score/ecu_model/communication",
         "//score/ecu_model/data_types",
+        "//score/ecu_model/diagnostics",
     ],
 )
 
@@ -43,5 +44,6 @@ py_test(
         "//score/ecu_model/architecture",
         "//score/ecu_model/communication",
         "//score/ecu_model/data_types",
+        "//score/ecu_model/diagnostics",
     ],
 )
