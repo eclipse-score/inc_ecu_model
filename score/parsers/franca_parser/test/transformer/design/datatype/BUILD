@@ -33,6 +33,12 @@ py_test(
     deps = ["//score/parsers/franca_parser"],
 )
 
+filegroup(
+    name = "franca_demo_fidl",
+    srcs = ["test_data/datatype_definitions/datatype_definitions.fidl"],
+    visibility = ["//score/parsers/runner/test/int/franca:__pkg__"],
+)
+
 franca_transformer(
     name = "fidl_datatype_pickle",
     srcs = ["test_data/reference_resolution/file_only_root.fidl"],

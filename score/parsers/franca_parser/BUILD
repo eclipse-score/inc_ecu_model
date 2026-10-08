@@ -51,3 +51,13 @@ py_binary(
     visibility = ["//visibility:private"],
     deps = [":franca_parser"],
 )
+
+py_library(
+    name = "franca_dispatch_parser",
+    srcs = ["franca_parser.py"],
+    deps = [
+        ":franca_parser",
+        "//score/parsers/franca_parser/transformer",
+        "//score/parsers/runner:common",
+    ],
+)

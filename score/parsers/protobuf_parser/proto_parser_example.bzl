@@ -15,6 +15,23 @@
 
 load("@rules_proto//proto:defs.bzl", "ProtoInfo")
 
+def _proto_descriptor_sets_impl(ctx):
+    descriptor_sets = depset(transitive = [
+        protobuf_dep[ProtoInfo].transitive_descriptor_sets
+        for protobuf_dep in ctx.attr.protobuf_deps
+    ])
+    return [DefaultInfo(files = descriptor_sets)]
+
+proto_descriptor_sets = rule(
+    implementation = _proto_descriptor_sets_impl,
+    attrs = {
+        "protobuf_deps": attr.label_list(
+            mandatory = True,
+            providers = [ProtoInfo],
+        ),
+    },
+)
+
 def _proto_parser_example_impl(ctx):
     descriptor_sets = depset(transitive = [
         protobuf_dep[ProtoInfo].transitive_descriptor_sets
