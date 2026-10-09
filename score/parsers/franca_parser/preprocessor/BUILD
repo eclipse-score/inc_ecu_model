@@ -11,4 +11,20 @@
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
 
-"""Placeholder for parser-specific topic resolution."""
+load("@rules_python//python:defs.bzl", "py_binary", "py_library")
+
+py_library(
+    name = "preprocessor",
+    srcs = [
+        "batch_runner.py",
+        "preprocess.py",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+py_binary(
+    name = "batch_runner",
+    srcs = ["batch_runner.py"],
+    visibility = ["//visibility:public"],
+    deps = [":preprocessor"],
+)

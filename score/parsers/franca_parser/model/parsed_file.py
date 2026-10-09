@@ -23,7 +23,7 @@ from score.parsers.franca_parser.model.franca_file import ImportedNamespace
 
 @dataclass
 class ParsedFile:
-    """Lark parse tree and imports for one Franca source file."""
+    """Represent a parsed Franca file, its syntax tree, and its imported namespaces."""
 
     file_path: Path
     parse_tree: Tree

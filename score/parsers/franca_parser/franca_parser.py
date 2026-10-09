@@ -31,6 +31,8 @@ class WrapperFrancaParser(Parser):
 
         self.franca_files = path_info.src_files
         self.dependency_files = path_info.ext_info.get("dependency_files", ())
+        self.defined = path_info.ext_info.get("defined")
+        self.need_preprocessor = path_info.ext_info.get("need_preprocessor", False)
 
     def parse(self) -> dict[str, object]:
         """Parse Franca files and return the transformed file models."""
@@ -46,6 +48,8 @@ class WrapperFrancaParser(Parser):
         franca_parser = FrancaParser(
             root_files=root_paths,
             dependency_files=dep_paths,
+            defined=self.defined,
+            need_preprocessor=self.need_preprocessor,
         )
         parsed_files = franca_parser.parse_files()
         transformed_files = FrancaFileGraphTransformer(parsed_files).transform_files()

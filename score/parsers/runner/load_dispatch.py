@@ -17,6 +17,7 @@ from functools import wraps
 from multiprocessing import get_context, Process
 from pathlib import Path
 import pickle
+from queue import Empty
 import tempfile
 from typing import Any
 from score.parsers.runner.common import Parser, ParsingPathInfo
@@ -199,11 +200,24 @@ def load_and_parse(
     results: dict[str, ParserResult] = {}
     errors: dict[str, str] = {}
 
-    running_processes_num = len(processes)
-    while running_processes_num > 0:
+    pending_parser_names = set(processes)
+    while pending_parser_names:
         # `status_queue` is `put` only when a sub-process have finished the parsing of all the source files.
-        parser_name, success, error_message = status_queue.get()
-        running_processes_num -= 1
+        try:
+            parser_name, success, error_message = status_queue.get(timeout=1)
+        except Empty:
+            for parser_name in tuple(pending_parser_names):
+                process = processes[parser_name]
+                if not process.is_alive():
+                    errors[parser_name] = (
+                        f"process exited with code {process.exitcode} without reporting status"
+                    )
+                    pending_parser_names.remove(parser_name)
+            continue
+
+        if parser_name not in pending_parser_names:
+            continue
+        pending_parser_names.remove(parser_name)
 
         # Error handling
         if not success:

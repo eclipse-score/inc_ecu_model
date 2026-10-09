@@ -32,11 +32,15 @@ def main() -> None:
     argument_parser.add_argument("--src", action="append", required=True)
     argument_parser.add_argument("--dep", action="append", default=[])
     argument_parser.add_argument("--out", required=True)
+    argument_parser.add_argument("--defined", action="append", default=[])
+    argument_parser.add_argument("--need_preprocessor", action="store_true", default=False)
     arguments = argument_parser.parse_args()
 
     parser = FrancaParser(
         root_files=[Path(source) for source in arguments.src],
         dependency_files=[Path(dependency) for dependency in arguments.dep],
+        defined=arguments.defined,
+        need_preprocessor=arguments.need_preprocessor,
     )
     transformed_files = FrancaFileGraphTransformer(parser.parse_files()).transform_files()
     datatypes = {}

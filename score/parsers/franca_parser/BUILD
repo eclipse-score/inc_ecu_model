@@ -38,6 +38,7 @@ py_library(
     data = glob(["grammar/*.lark"]),
     deps = [
         "//score/parsers/franca_parser/model",
+        "//score/parsers/franca_parser/preprocessor",
         "//score/parsers/franca_parser/transformer",
         "@pypi//lark",
     ],

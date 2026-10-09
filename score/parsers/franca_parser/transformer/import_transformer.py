@@ -28,9 +28,8 @@ from score.parsers.franca_parser.transformer.base_transformer import (
 
 
 class FrancaImportTransformer(FrancaFileTransformer):
-    """Extract import declarations and resolve their source paths."""
-
     def __init__(self, resolve_path: Callable[[str], Path]) -> None:
+        """Initialize a transformer that extracts imports and resolves their source paths."""
         super().__init__()
         self._resolve_path = resolve_path
         self.imported_namespaces: list[ImportedNamespace] = []
