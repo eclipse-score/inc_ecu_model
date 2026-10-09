@@ -11,7 +11,25 @@
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
 
-"""Batch and parallel execution for the Franca preprocessor."""
+"""
+Preprocess Franca files concurrently in batches.
+
+Entry points
+----
+There are two ways to start preprocessing:
+
+1. Instantiate :class:`BatchRunner` with the input paths and options, then call method `batch_run` of `BatchRunner`
+   class.
+2. Call the `batch_preprocess` function with the program arguments. It converts those arguments into a `BatchRunner`
+   class instance and ultimately calls its `batch_run` method of `BatchRunner` class.
+
+Concurrency model
+----
+The preprocessor uses two levels of concurrency to process large collections of Franca files faster. At the first level,
+multiple processes handle files concurrently, making use of multiple CPU cores. At the second level, each process starts
+multiple threads. The threads can overlap file processing with loading other files, so I/O waits in one thread do not
+leave the process idle.
+"""
 
 import argparse
 import ctypes
@@ -66,6 +84,16 @@ class PreProcessorWorker(Thread):
         batch_size: int = DEFAULT_BATCH_SIZE,
         queue_timeout: float = DEFAULT_QUEUE_TIMEOUT,
     ) -> None:
+        """Read file batches, preprocess their contents, and return processed batches.
+
+        :param in_queue_file_list: Queue from which batches of paths are read.
+        :param out_queue_processed_files: Queue receiving processed file batches.
+        :param error_queue: Queue receiving details about worker failures.
+        :param all_paths_sent: Shared flag indicating that no more paths will arrive.
+        :param defines: Symbols treated as defined during preprocessing.
+        :param batch_size: Maximum number of results sent in one output batch.
+        :param queue_timeout: Maximum wait between input queue checks.
+        """
         super().__init__(daemon=True)
         self.in_queue_file_list = in_queue_file_list
         self.out_queue_processed_files = out_queue_processed_files
@@ -76,6 +104,7 @@ class PreProcessorWorker(Thread):
         self.queue_timeout = queue_timeout
 
     def run(self) -> None:
+        """Process queued files and report results or any worker failure."""
         batch_processed: list[tuple[str, str]] = []
         current_file: str | None = None
         try:
@@ -142,6 +171,17 @@ class PreProcessorRunner(Process):
         batch_size: int = DEFAULT_BATCH_SIZE,
         queue_timeout: float = DEFAULT_QUEUE_TIMEOUT,
     ) -> None:
+        """Run a pool of preprocessor worker threads in a child process.
+
+        :param in_queue_file_list: Queue from which batches of paths are read.
+        :param out_queue_processed_files: Queue receiving processed file batches.
+        :param error_queue: Queue receiving details about worker failures.
+        :param all_paths_sent: Shared flag indicating that no more paths will arrive.
+        :param defines: Symbols treated as defined during preprocessing.
+        :param thread_count: Number of worker threads to start.
+        :param batch_size: Maximum number of results sent in one output batch.
+        :param queue_timeout: Maximum wait between input queue checks.
+        """
         super().__init__()
         self.in_queue_file_list = in_queue_file_list
         self.out_queue_processed_files = out_queue_processed_files
@@ -153,6 +193,7 @@ class PreProcessorRunner(Process):
         self.queue_timeout = queue_timeout
 
     def run(self) -> None:
+        """Start the configured workers and wait for them to finish."""
         workers = [
             PreProcessorWorker(
                 in_queue_file_list=self.in_queue_file_list,
@@ -172,6 +213,11 @@ class PreProcessorRunner(Process):
 
 
 def parse_args(args: Optional[list[str]] = None) -> argparse.Namespace:
+    """Parse batch-runner options.
+
+    :param args: Optional command-line arguments to parse instead of process arguments.
+    :return: The parsed batch-runner options.
+    """
     parser = argparse.ArgumentParser(description="Batch runner for Franca source file preprocessing.")
     parser.add_argument("--dir", nargs="+", action="extend", default=[])
     parser.add_argument("--files", nargs="+", action="extend", default=[])
@@ -184,7 +230,9 @@ def parse_args(args: Optional[list[str]] = None) -> argparse.Namespace:
 
 
 class BatchRunner:
-    """Schedule and collect preprocessing for explicitly listed Franca files."""
+    """Schedule and collect preprocessing for explicitly listed Franca files. See the docstring of this module for
+    detail.
+    """
 
     def __init__(
         self,
@@ -195,6 +243,16 @@ class BatchRunner:
         recur: bool = False,
         defined_list: Optional[Sequence[str]] = None,
     ) -> None:
+        """Schedule and collect preprocessing for explicitly listed Franca files. See the docstring of this module for
+        detail.
+
+        :param dir_list: Directories to search for source files.
+        :param dir_path_file: File containing directories to search.
+        :param file_list: Explicit source file paths to process.
+        :param file_path_file: File containing explicit source file paths.
+        :param recur: Whether directory searches include subdirectories.
+        :param defined_list: Symbols treated as defined during preprocessing.
+        """
         self.dir_list = [Path(directory) for directory in dir_list] if dir_list else []
         self.dir_path_file = Path(dir_path_file) if dir_path_file else None
         self.file_list = [Path(file_path) for file_path in file_list] if file_list else []
@@ -212,11 +270,20 @@ class BatchRunner:
         batch_size: int = DEFAULT_BATCH_SIZE,
         sentinel_count: int = 1,
     ) -> None:
+        """Discover supported input files and enqueue them with completion markers.
+
+        :param batch_size: Maximum number of paths placed in each input batch.
+        :param sentinel_count: Number of end-of-input markers to enqueue.
+        """
         seen_paths: set[Path] = set()
         batch: list[Path] = []
         num_read_files = 0
 
         def handle_path(path: Path) -> None:
+            """Add a unique supported path to the current input batch.
+
+            :param path: Candidate source file path.
+            """
             nonlocal batch, num_read_files
             resolved_path = path.resolve()
             if resolved_path in seen_paths:
@@ -251,6 +318,12 @@ class BatchRunner:
             self.out_queue_file_list.put(None)
 
     def batch_run(self, batch_size: int = DEFAULT_BATCH_SIZE) -> dict[str, str]:
+        """Run preprocessing across worker processes and collect all results.
+
+        :param batch_size: Maximum number of files assigned to a processing batch.
+        :return: A mapping from resolved file paths to preprocessed contents.
+        :raises BatchPreProcessError: If one or more workers report a failure.
+        """
         real_cpu_count = os.cpu_count()
         num_processes = min(MAX_PREPROCESSOR_PROCESS_COUNT, real_cpu_count or 4)
         sentinel_count = num_processes * DEFAULT_WORKER_THREAD_COUNT
@@ -321,6 +394,13 @@ class BatchRunner:
 
 
 def batch_preprocess(prog_args: Optional[list[str]] = None) -> dict[str, str]:
+    """Run batch preprocessing using command-line options.
+
+    See the docstring of this module for detail.
+
+    :param prog_args: Optional command-line arguments to parse instead of process arguments.
+    :return: A mapping from resolved file paths to preprocessed contents.
+    """
     script_start_time = time.time()
     args = parse_args(prog_args)
     runner = BatchRunner(

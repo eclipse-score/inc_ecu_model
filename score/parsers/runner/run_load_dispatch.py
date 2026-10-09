@@ -27,7 +27,12 @@ from score.parsers.runner.common import ParsingPathInfo
 from score.parsers.runner.load_dispatch import load_and_parse
 
 def _stringify_keys(obj: Any, active_object_ids: set[int] | None = None) -> Any:
-    """Expand nested objects for JSON output while protecting against cycles."""
+    """Convert nested values into a JSON-friendly structure and mark cycles.
+
+    :param obj: Value to expand into JSON-compatible containers.
+    :param active_object_ids: Object identities on the current traversal path.
+    :return: Expanded value, with cyclic references represented by an ellipsis marker.
+    """
     if active_object_ids is None:
         active_object_ids = set()
 
@@ -71,7 +76,7 @@ def _stringify_keys(obj: Any, active_object_ids: set[int] | None = None) -> Any:
 
 
 def main() -> None:
-    """Run the parser dispatcher with inputs provided via manifest file or CLI arguments."""
+    """Load parser inputs, dispatch parsing, and write binary and text results."""
     parser = argparse.ArgumentParser(description="Run load dispatch parser")
     parser.add_argument(
         "--manifest",

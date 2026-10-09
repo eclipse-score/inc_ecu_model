@@ -35,11 +35,20 @@ class ParsingPathInfo:
 
 
 class Parser(ABC):
+    """Base interface for parser implementations used by the dispatcher."""
+
     def __init__(self, path_info: ParsingPathInfo) -> None:
+        """Base interface for parser implementations used by the dispatcher.
+
+        :param path_info: Source, output, and parser-specific path information.
+        """
         super().__init__()
         self.path_info = path_info
 
     @abstractmethod
     def parse(self) -> dict[str, object]:
-        """Parse the source files and returns the parsed model as a dictionary."""
+        """Parse the configured source files.
+
+        :return: The parsed model.
+        """
         pass

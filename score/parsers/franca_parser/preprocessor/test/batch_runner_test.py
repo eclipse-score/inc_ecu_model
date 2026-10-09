@@ -29,6 +29,7 @@ class BatchRunnerTest(unittest.TestCase):
     """Verify worker failures reach the parent process."""
 
     def test_batch_run_when_worker_thread_fails_raises_after_cleanup(self) -> None:
+        """Verify a worker error is raised after all child processes are cleaned up."""
         with TemporaryDirectory() as temporary_directory:
             good_file = Path(temporary_directory) / "good.fidl"
             bad_file = Path(temporary_directory) / "bad.fidl"
@@ -39,6 +40,7 @@ class BatchRunnerTest(unittest.TestCase):
 
             class RecordingPreProcessorRunner(PreProcessorRunner):
                 def __init__(self, *args: object, **kwargs: object) -> None:
+                    """Record each process instance while preserving normal setup."""
                     super().__init__(*args, **kwargs)
                     processes.append(self)
 
@@ -63,6 +65,7 @@ class BatchRunnerTest(unittest.TestCase):
         self.assertEqual(processes[0].exitcode, 0)
 
     def test_batch_run_when_multiple_worker_threads_fail_reports_all_errors(self) -> None:
+        """Verify failures from multiple workers are all included in the raised error."""
         with TemporaryDirectory() as temporary_directory:
             bad_files = [Path(temporary_directory) / f"bad_{index}.fidl" for index in range(2)]
             for bad_file in bad_files:

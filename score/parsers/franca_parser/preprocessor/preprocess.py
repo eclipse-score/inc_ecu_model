@@ -28,6 +28,10 @@ class PreProcessError(Exception):
 
 
 def parse_args():
+    """Parse command-line options for preprocessing.
+
+    :return: The parsed command-line options.
+    """
     parser = argparse.ArgumentParser(description="Flat #if/#elif/#else pre-processor")
     parser.add_argument("-D", dest="defines", action="append", default=[], help="Define symbol (repeat as needed)")
     parser.add_argument("-o", "--output", required=True, type=Path, help="Output file")
@@ -36,7 +40,12 @@ def parse_args():
 
 
 def preprocess(content: str, defines: set[str]) -> str:
-    """Keep only source lines selected by supported defined/elif/else directives."""
+    """Keep source lines selected by supported conditional directives.
+
+    :param content: Source text containing conditional directives.
+    :param defines: Symbols treated as defined when evaluating directives.
+    :return: Source text with directives and inactive lines removed.
+    """
     lines = content.splitlines(keepends=True)
     output_lines = []
 
@@ -92,6 +101,7 @@ def preprocess(content: str, defines: set[str]) -> str:
 
 
 def main() -> None:
+    """Read, preprocess, and write the files specified on the command line."""
     args = parse_args()
     defines = set(args.defines)
 
