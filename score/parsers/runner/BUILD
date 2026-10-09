@@ -26,8 +26,8 @@ py_library(
     srcs = ["load_dispatch.py"],
     deps = [
         ":common",
-        "//score/parsers/franca_parser:franca_dispatch_parser",
-        "//score/parsers/protobuf_parser:protobuf_dispatch_parser",
+        "//score/parsers/franca_parser:franca_parser",
+        "//score/parsers/protobuf_parser:protobuf_parser",
     ],
 )
 

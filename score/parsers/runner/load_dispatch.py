@@ -22,8 +22,8 @@ import tempfile
 from typing import Any
 from score.parsers.runner.common import Parser, ParsingPathInfo
 
-from score.parsers.franca_parser.franca_parser import WrapperFrancaParser
-from score.parsers.protobuf_parser.protobuf_parser import (
+from score.parsers.franca_parser.parser import WrapperFrancaParser
+from score.parsers.protobuf_parser.api import (
     WrapperProtobufParser,
 )
 

@@ -40,6 +40,7 @@ py_library(
         "//score/parsers/franca_parser/model",
         "//score/parsers/franca_parser/preprocessor",
         "//score/parsers/franca_parser/transformer",
+        "//score/parsers/runner:common",
         "@pypi//lark",
     ],
 )
@@ -51,14 +52,4 @@ py_binary(
     main = "franca_transformer_runner.py",
     visibility = ["//visibility:private"],
     deps = [":franca_parser"],
-)
-
-py_library(
-    name = "franca_dispatch_parser",
-    srcs = ["franca_parser.py"],
-    deps = [
-        ":franca_parser",
-        "//score/parsers/franca_parser/transformer",
-        "//score/parsers/runner:common",
-    ],
 )

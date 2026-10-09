@@ -26,6 +26,7 @@ from score.parsers.protobuf_parser.resolver import (
 from score.parsers.protobuf_parser.transformer import (
     DescriptorSetTransformer,
 )
+from score.parsers.runner.common import Parser, ParsingPathInfo
 
 
 class ProtobufToDataTypeParser:
@@ -45,3 +46,22 @@ class ProtobufToDataTypeParser:
             raise ProtoResolverError(message)
 
         return definitions_by_key
+
+
+class WrapperProtobufParser(Parser):
+    def __init__(self, path_info: ParsingPathInfo) -> None:
+        """Adapter from runner input to Protobuf parsing."""
+        super().__init__(path_info)
+        self.protobuf_files = path_info.src_files
+
+    def parse(self) -> dict[str, object]:
+        """Parse protobuf descriptor files and return the definitions mapping."""
+        if not self.protobuf_files:
+            result: dict[str, object] = {"data_types": {}}
+            return result
+
+        registry = ProtobufToDataTypeParser.parse(self.protobuf_files)
+
+        result = {"data_types": registry}
+
+        return result
