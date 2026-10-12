@@ -41,32 +41,3 @@ py_binary(
         "@rules_python//python/runfiles",
     ],
 )
-
-py_binary(
-    name = "load_dispatch_demo",
-    srcs = ["run_load_dispatch.py"],
-    args = [
-        "--output=$(BINDIR)/" + package_name() + "/load_dispatch_demo_output.pkl",
-        "--text-output=$(BINDIR)/" + package_name() + "/load_dispatch_demo_output.txt",
-        "--franca-files",
-        "$(locations //score/parsers/runner/test/int/franca:franca_files)",
-        "--protobuf-files",
-        "$(locations //score/parsers/runner/test/int/protobuf:protobuf_files)",
-    ],
-    data = [
-        "//score/parsers/runner/test/int/franca:franca_files",
-        "//score/parsers/runner/test/int/protobuf:protobuf_files",
-    ],
-    main = "run_load_dispatch.py",
-    deps = [
-        ":parsers",
-        "@pypi//pydantic",
-        "@rules_python//python/runfiles",
-    ],
-)
-
-load_dispatch_parse(
-    name = "load_dispatch_parse_demo",
-    franca_srcs = ["//score/parsers/runner/test/int/franca:franca_files"],
-    protobuf_deps = ["//score/parsers/runner/test/int/protobuf:protobuf_files"],
-)
