@@ -93,7 +93,7 @@ def load_and_parse(
     protobuf_files_desc: ParsingPathInfo,
     return_parsed_object: bool,
     temp_dir: str = "",
-) -> bytes | dict[str, object]:
+) -> dict[str, object]:
     """Parse Franca and Protobuf inputs in parallel and optionally merge their registries.
 
     When the serialized registry is returned, missing output paths are created in a
@@ -103,7 +103,8 @@ def load_and_parse(
     :param protobuf_files_desc: Description of the Protobuf files parsing.
     :param return_parsed_object: Whether to load and merge worker registries in this process.
     :param temp_dir: Directory for intermediate results; normally supplied automatically.
-    :return: Serialized merged registry bytes, or an empty mapping when not requested.
+    :return: A mapping containing the merged ModelElement registry under ``data_types``,
+        or an empty mapping when results are not requested.
     :raises ValueError: If results are not returned and an output path is missing.
     :raises RuntimeError: If a parser process fails or its result cannot be loaded.
     """
@@ -219,4 +220,4 @@ def load_and_parse(
                 raise RuntimeError(f"Duplicate model element ID {element_id} from {parser_name}")
             merged_elements[element_id] = element
 
-    return pickle.dumps(merged_elements, protocol=pickle.HIGHEST_PROTOCOL)
+    return {"data_types": merged_elements}
