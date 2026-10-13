@@ -143,11 +143,11 @@ def main() -> None:
     )
 
     with output_dump_path.open("wb") as output_file:
-        pickle.dump(result, output_file)
+        output_file.write(result)
 
     # Keep the text dump available for debugging when human-readable output is needed.
     text_dump_path.write_text(
-        json.dumps(_stringify_keys(result), indent=2, sort_keys=True, default=str),
+        json.dumps(_stringify_keys(pickle.loads(result)), indent=2, sort_keys=True, default=str),
         encoding="utf-8",
     )
 

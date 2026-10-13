@@ -20,6 +20,9 @@ import pickle
 from queue import Empty
 import tempfile
 from typing import Any
+from uuid import UUID
+
+from score.ecu_model.model import ModelElement, ModelRegistry
 from score.parsers.runner.common import Parser, ParsingPathInfo
 
 from score.parsers.franca_parser.parser import WrapperFrancaParser
@@ -27,8 +30,7 @@ from score.parsers.protobuf_parser.api import (
     WrapperProtobufParser,
 )
 
-ParserResult = dict[str, object]
-
+ParserResult = dict[UUID, ModelElement]
 
 
 def _run_parser_process(
@@ -49,24 +51,13 @@ def _run_parser_process(
         if files_desc.result_pickle_path is None:
             raise ValueError("The result_pickle_path cannot be None.")
 
-        # Parse
-        result = parser_class(files_desc).parse()
-        # Performance consideration:
-        #   * `parse()` returns the `result`
-        #
-        #     This function and the `parse()` method run in the same subprocess. So returning the result just returns
-        #     a reference and hence is very cheap.
-        #
-        #   * This function writes file
-        #
-        #     However, if this function puts `result` into the `status_queue`, it would serialize the entire object into
-        #     memory, which may bring significant overhead for large result objects. So this function writes `result`
-        #     to a pickle file instead. The path of the pickle file is specified by the main process so it knows where
-        #     to read the result from.
+        # Parse into a clean, process-local registry.
+        ModelRegistry.elements.clear()
+        parser_class(files_desc).parse()
 
-        # Report to the main process
+        # Write the registry payload instead of sending all elements through the status queue.
         with Path(files_desc.result_pickle_path).open("wb") as output_file:
-            pickle.dump(result, output_file)
+            output_file.write(ModelRegistry.serialize())
         status_queue.put((parser_name, True, ""))
     except Exception as error:  # pragma: no cover
         status_queue.put((parser_name, False, f"{type(error).__name__}: {error}"))
@@ -102,17 +93,17 @@ def load_and_parse(
     protobuf_files_desc: ParsingPathInfo,
     return_parsed_object: bool,
     temp_dir: str = "",
-) -> dict[str, object]:
-    """Parse Franca and Protobuf inputs in parallel and optionally merge their results.
+) -> bytes | dict[str, object]:
+    """Parse Franca and Protobuf inputs in parallel and optionally merge their registries.
 
-    When parsed results are returned, missing output paths are created in a temporary
-    directory. Otherwise, each input description must provide an output path.
+    When the serialized registry is returned, missing output paths are created in a
+    temporary directory. Otherwise, each input description must provide an output path.
 
     :param franca_files_desc: Description of the Franca files parsing.
     :param protobuf_files_desc: Description of the Protobuf files parsing.
-    :param return_parsed_object: Whether to load and merge the parser results in this process.
+    :param return_parsed_object: Whether to load and merge worker registries in this process.
     :param temp_dir: Directory for intermediate results; normally supplied automatically.
-    :return: Merged parser data when requested, or an empty mapping otherwise.
+    :return: Serialized merged registry bytes, or an empty mapping when not requested.
     :raises ValueError: If results are not returned and an output path is missing.
     :raises RuntimeError: If a parser process fails or its result cannot be loaded.
     """
@@ -135,7 +126,7 @@ def load_and_parse(
 
 
     # 2. Create and launch processes
-    multiprocessing_context = get_context()
+    multiprocessing_context = get_context("spawn")
     status_queue = multiprocessing_context.Queue()
     processes: dict[str, Process] = {}
 
@@ -189,7 +180,14 @@ def load_and_parse(
         if return_parsed_object:
             try:
                 with result_pickle_file.open("rb") as pickle_file:
-                    results[parser_name] = pickle.load(pickle_file)
+                    parser_registry = pickle.load(pickle_file)
+                if not isinstance(parser_registry, dict) or not all(
+                    isinstance(element_id, UUID) and isinstance(element, ModelElement)
+                    for element_id, element in parser_registry.items()
+                ):
+                    errors[parser_name] = "pickle output does not contain a ModelRegistry"
+                else:
+                    results[parser_name] = parser_registry
             except Exception as error:
                 errors[parser_name] = f"failed to load pickle output: {error}"
         # Note:
@@ -214,11 +212,11 @@ def load_and_parse(
     if not return_parsed_object:
         return {}
 
-    merged_data_types: dict[str, object] = {}
+    merged_elements: dict[UUID, ModelElement] = {}
     for parser_name in ("franca", "protobuf"):
-        parser_result = results.get(parser_name, {})
-        parser_data_types = parser_result.get("data_types", {})
-        if isinstance(parser_data_types, dict):
-            merged_data_types.update(parser_data_types)
+        for element_id, element in results.get(parser_name, {}).items():
+            if element_id in merged_elements:
+                raise RuntimeError(f"Duplicate model element ID {element_id} from {parser_name}")
+            merged_elements[element_id] = element
 
-    return {"data_types": merged_data_types}
+    return pickle.dumps(merged_elements, protocol=pickle.HIGHEST_PROTOCOL)
