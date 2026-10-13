@@ -47,7 +47,7 @@ def _load_dispatch_parse_impl(ctx):
     )
 
     pickle_output_file = ctx.outputs.out if ctx.outputs.out else ctx.actions.declare_file(ctx.label.name + "_output.pkl")
-    text_output_file = ctx.outputs.txt_out if ctx.outputs.txt_out else ctx.actions.declare_file(ctx.label.name + "_output.txt")
+    text_output_file = ctx.outputs.txt_out
 
     all_inputs = depset(
         direct = [manifest_file] + franca_files + proto_descriptors,
@@ -56,12 +56,17 @@ def _load_dispatch_parse_impl(ctx):
     args = ctx.actions.args()
     args.add("--manifest", manifest_file)
     args.add("--output", pickle_output_file)
-    args.add("--text-output", text_output_file)
+    output_files = [pickle_output_file]
+    if text_output_file:
+        args.add("--text-output", text_output_file)
+        output_files.append(text_output_file)
+
+    runfiles_files = output_files + [manifest_file]
 
     ctx.actions.run(
         executable = ctx.executable._runner,
         inputs = all_inputs,
-        outputs = [pickle_output_file, text_output_file],
+        outputs = output_files,
         arguments = [args],
         mnemonic = "LoadDispatchParser",
         progress_message = "Parsing IDL sources for %{label}",
@@ -69,8 +74,8 @@ def _load_dispatch_parse_impl(ctx):
 
     return [
         DefaultInfo(
-            files = depset([pickle_output_file, text_output_file]),
-            runfiles = ctx.runfiles(files = [pickle_output_file, text_output_file, manifest_file]),
+            files = depset(output_files),
+            runfiles = ctx.runfiles(files = runfiles_files),
         ),
     ]
 

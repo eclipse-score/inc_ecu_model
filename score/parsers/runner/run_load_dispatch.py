@@ -76,7 +76,7 @@ def _stringify_keys(obj: Any, active_object_ids: set[int] | None = None) -> Any:
 
 
 def main() -> None:
-    """Load parser inputs, dispatch parsing, and write binary and text results."""
+    """Load parser inputs, dispatch parsing, and write the results."""
     parser = argparse.ArgumentParser(description="Run load dispatch parser")
     parser.add_argument(
         "--manifest",
@@ -105,7 +105,7 @@ def main() -> None:
     parser.add_argument(
         "--text-output",
         type=str,
-        required=True,
+        default=None,
         help="Path to human-readable text output file",
     )
     args, _ = parser.parse_known_args()
@@ -125,16 +125,17 @@ def main() -> None:
         }
 
     output_dump_path = Path(args.output)
-    text_dump_path = Path(args.text_output)
+    text_dump_path = Path(args.text_output) if args.text_output is not None else None
     if "BUILD_WORKSPACE_DIRECTORY" in os.environ:
         workspace_directory = Path(os.environ["BUILD_WORKSPACE_DIRECTORY"])
         if not output_dump_path.is_absolute():
             output_dump_path = workspace_directory / output_dump_path
-        if not text_dump_path.is_absolute():
+        if text_dump_path is not None and not text_dump_path.is_absolute():
             text_dump_path = workspace_directory / text_dump_path
 
     output_dump_path.parent.mkdir(parents=True, exist_ok=True)
-    text_dump_path.parent.mkdir(parents=True, exist_ok=True)
+    if text_dump_path is not None:
+        text_dump_path.parent.mkdir(parents=True, exist_ok=True)
 
     result = load_and_parse(
         franca_files_desc = ParsingPathInfo(src_files=tuple(parser_input_files["franca_files"])),
@@ -145,11 +146,11 @@ def main() -> None:
     with output_dump_path.open("wb") as output_file:
         pickle.dump(result, output_file)
 
-    # Keep the text dump available for debugging when human-readable output is needed.
-    text_dump_path.write_text(
-        json.dumps(_stringify_keys(result), indent=2, sort_keys=True, default=str),
-        encoding="utf-8",
-    )
+    if text_dump_path is not None:
+        text_dump_path.write_text(
+            json.dumps(_stringify_keys(result), indent=2, sort_keys=True, default=str),
+            encoding="utf-8",
+        )
 
     # TBD: resolver, entrance is the selected submodule {datatype, interface, ...} etc
 
