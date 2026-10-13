@@ -16,6 +16,8 @@ from pathlib import Path
 from typing import Union
 from dataclasses import dataclass, field
 
+from score.ecu_model.data_types.common import DataTypeBase
+
 PathEntry = Union[str, Path]
 
 
@@ -46,7 +48,7 @@ class Parser(ABC):
         self.path_info = path_info
 
     @abstractmethod
-    def parse(self) -> dict[str, object]:
+    def parse(self) -> dict[str, dict[str, DataTypeBase]]:
         """Parse the configured source files.
 
         :return: The parsed model.

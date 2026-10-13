@@ -54,10 +54,10 @@ class WrapperProtobufParser(Parser):
         super().__init__(path_info)
         self.protobuf_files = path_info.src_files
 
-    def parse(self) -> dict[str, object]:
+    def parse(self) -> dict[str, dict[str, DataTypeBase]]:
         """Parse protobuf descriptor files and return the definitions mapping."""
         if not self.protobuf_files:
-            result: dict[str, object] = {"data_types": {}}
+            result: dict[str, dict[str, DataTypeBase]] = {"data_types": {}}
             return result
 
         registry = ProtobufToDataTypeParser.parse(self.protobuf_files)
