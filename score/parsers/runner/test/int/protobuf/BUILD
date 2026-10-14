@@ -11,7 +11,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
 
-load("//score/parsers/protobuf_parser:proto_parser_example.bzl", "proto_descriptor_sets")
+load("//score/parsers/protobuf_parser:proto_parser.bzl", "proto_descriptor_sets")
 
 package(default_visibility = ["//visibility:public"])
 

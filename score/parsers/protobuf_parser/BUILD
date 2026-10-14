@@ -37,3 +37,13 @@ py_binary(
     main = "proto_parser_runner.py",
     deps = [":protobuf_parser"],
 )
+
+py_binary(
+    name = "protobuf_model_parser_runner",
+    srcs = ["protobuf_model_parser_runner.py"],
+    main = "protobuf_model_parser_runner.py",
+    deps = [
+        ":protobuf_parser",
+        "//score/parsers/runner:common",
+    ],
+)

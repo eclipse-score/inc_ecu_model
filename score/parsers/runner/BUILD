@@ -12,31 +12,35 @@
 # *******************************************************************************
 
 load("@rules_python//python:defs.bzl", "py_binary", "py_library")
-load(":parsers.bzl", "load_dispatch_parse")
+load(":parsers.bzl", "load_and_resolve")
 
 package(default_visibility = ["//visibility:public"])
 
 py_library(
     name = "common",
     srcs = ["common.py"],
+    deps = [
+        "//score/ecu_model",
+        "//score/ecu_model/data_types",
+        "@pypi//pydantic",
+    ],
 )
 
 py_library(
-    name = "parsers",
-    srcs = ["load_dispatch.py"],
+    name = "load_and_resolve",
+    srcs = ["load_and_resolve.py"],
     deps = [
         ":common",
-        "//score/parsers/franca_parser:franca_parser",
-        "//score/parsers/protobuf_parser:protobuf_parser",
+        "//score/ecu_model",
     ],
 )
 
 py_binary(
-    name = "run_load_dispatch",
-    srcs = ["run_load_dispatch.py"],
-    main = "run_load_dispatch.py",
+    name = "run_load_and_resolve",
+    srcs = ["run_load_and_resolve.py"],
+    main = "run_load_and_resolve.py",
     deps = [
-        ":parsers",
+        ":load_and_resolve",
         "@pypi//pydantic",
         "@rules_python//python/runfiles",
     ],

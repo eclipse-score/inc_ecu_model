@@ -12,7 +12,7 @@
 # *******************************************************************************
 
 load("@rules_python//python:defs.bzl", "py_test")
-load("//score/parsers/franca_parser:franca_transformer.bzl", "franca_transformer")
+load("//score/parsers/franca_parser:franca_parser.bzl", "franca_parse")
 
 py_test(
     name = "fidl_datatype_resolver_test",
@@ -39,7 +39,7 @@ filegroup(
     visibility = ["//score/parsers/runner/test/int/franca:__pkg__"],
 )
 
-franca_transformer(
+franca_parse(
     name = "fidl_datatype_pickle",
     srcs = ["test_data/reference_resolution/file_only_root.fidl"],
     deps = [

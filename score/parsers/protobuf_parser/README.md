@@ -40,13 +40,13 @@ This directory provides a two-phase pipeline from Bazel-produced Protobuf
 
 ## Bazel Integration Example
 
-The included `proto_parser_example` rule lets Bazel own Protobuf compilation and
+The included `proto_parser` rule lets Bazel own Protobuf compilation and
 import resolution, then consumes descriptor sets in Python:
 
 ```text
 proto_library targets
     -> ProtoInfo.transitive_descriptor_sets
-    -> proto_parser_example Bazel action
+    -> proto_parser Bazel action
     -> proto_parser_runner Python executable
     -> ProtobufToDataTypeParser descriptor-set entry point
     -> dict[str, DataTypeBase]
@@ -80,13 +80,13 @@ proto_library(
     ],
 )
 
-proto_parser_example(
+proto_parser(
     name = "activation_decision_model",
     protobuf_deps = [":activation_decision_input_proto"],
 )
 ```
 
-`proto_parser_example` constrains `protobuf_deps` to targets providing
+`proto_parser` constrains `protobuf_deps` to targets providing
 `ProtoInfo`, collects their `transitive_descriptor_sets`, declares those files
 as action inputs, and passes their paths to the executable. It does not
 reconstruct `--proto_path` from `File.path`, external repository names, or

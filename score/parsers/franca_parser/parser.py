@@ -19,8 +19,6 @@ from typing import Iterable, Optional, Union
 from lark import Lark
 from lark.exceptions import VisitError
 
-from score.ecu_model.data_types.common import DataTypeBase
-from score.parsers.franca_parser.model.fidl.fidl_file import FIDLFileModel
 from score.parsers.franca_parser.model.parsed_file import ParsedFile
 from score.parsers.franca_parser.transformer.file_graph_transformer import (
     FrancaFileGraphTransformer,
@@ -29,7 +27,7 @@ from score.parsers.franca_parser.transformer.import_transformer import (
     FrancaImportTransformer,
 )
 from score.parsers.franca_parser.preprocessor.batch_runner import BatchRunner
-from score.parsers.runner.common import Parser, ParsingPathInfo
+from score.parsers.runner.common import Parser, ParsingPathInfo, write_parser_outputs
 
 
 class FrancaParser:
@@ -146,28 +144,19 @@ class WrapperFrancaParser(Parser):
         self.defined = path_info.ext_info.get("defined")
         self.need_preprocessor = path_info.ext_info.get("need_preprocessor", False)
 
-    def parse(self) -> dict[str, dict[str, DataTypeBase]]:
-        """Parse Franca files and return the transformed file models."""
-        if not self.franca_files:
-            result: dict[str, dict[str, DataTypeBase]] = {"data_types": {}}
-            return result
+    def parse(self):
+        """Parse Franca files and register their transformed model elements."""
+        if self.franca_files:
+            root_paths = [Path(file_path) for file_path in self.franca_files]
+            dep_paths = [Path(file_path) for file_path in self.dependency_files]
 
-        root_paths = [Path(file_path) for file_path in self.franca_files]
-        dep_paths = [Path(file_path) for file_path in self.dependency_files]
+            franca_parser = FrancaParser(
+                root_files=root_paths,
+                dependency_files=dep_paths,
+                defined=self.defined,
+                need_preprocessor=self.need_preprocessor,
+            )
+            parsed_files = franca_parser.parse_files()
+            FrancaFileGraphTransformer(parsed_files).transform_files()
 
-        franca_parser = FrancaParser(
-            root_files=root_paths,
-            dependency_files=dep_paths,
-            defined=self.defined,
-            need_preprocessor=self.need_preprocessor,
-        )
-        parsed_files = franca_parser.parse_files()
-        transformed_files = FrancaFileGraphTransformer(parsed_files).transform_files()
-        datatypes: dict[str, DataTypeBase] = {}
-        for file_model in transformed_files.values():
-            if isinstance(file_model, FIDLFileModel):
-                datatypes.update(file_model._datatype_index)
-
-        result = {"data_types": datatypes}
-
-        return result
+        write_parser_outputs(self.path_info)

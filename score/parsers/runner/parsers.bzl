@@ -1,102 +1,54 @@
-# *******************************************************************************
-# Copyright (c) 2026 Contributors to the Eclipse Foundation
-#
-# See the NOTICE file(s) distributed with this work for additional
-# information regarding copyright ownership.
-#
-# This program and the accompanying materials are made available under the
-# terms of the Apache License Version 2.0 which is available at
-# https://www.apache.org/licenses/LICENSE-2.0
-#
-# SPDX-License-Identifier: Apache-2.0
-# *******************************************************************************
+"""Bazel rule for merging outputs produced by individual parser targets."""
 
-"""Bazel rule for dispatching and parsing various IDL source files into a unified model."""
+load(":parser_outputs.bzl", "ParserOutputsInfo")
 
-load("@rules_proto//proto:defs.bzl", "ProtoInfo")
-
-def _load_dispatch_parse_impl(ctx):
-    franca_files = []
-    for src in ctx.attr.franca_srcs:
-        if hasattr(src, "FrancaInfo") or "FrancaInfo" in dir(src):
-            # In Starlark, we check if provider key is in src
-            pass
-
-        # Standard provider or DefaultInfo check
-        if hasattr(src, "files"):
-            franca_files.extend(src.files.to_list())
-
-    # Deduplicate franca files
-    franca_files = list({f.path: f for f in franca_files}.values())
-
-    proto_descriptors = []
-    for dep in ctx.attr.protobuf_deps:
-        if ProtoInfo in dep:
-            proto_descriptors.extend(dep[ProtoInfo].transitive_descriptor_sets.to_list())
-        elif hasattr(dep, "files"):
-            proto_descriptors.extend(dep.files.to_list())
-
-    manifest_file = ctx.actions.declare_file(ctx.label.name + "_manifest.json")
-    manifest_data = {
-        "franca_files": [f.path for f in franca_files],
-        "protobuf_files": [f.path for f in proto_descriptors],
-    }
-    ctx.actions.write(
-        output = manifest_file,
-        content = json.encode_indent(manifest_data, indent = "  "),
-    )
+def _load_and_resolve_impl(ctx):
+    registry_files = []
+    for parser_target in ctx.attr.franca_parsers + ctx.attr.protobuf_parsers:
+        parser_outputs = parser_target[ParserOutputsInfo]
+        registry_files.append(parser_outputs.registry_file)
 
     pickle_output_file = ctx.outputs.out if ctx.outputs.out else ctx.actions.declare_file(ctx.label.name + "_output.pkl")
     text_output_file = ctx.outputs.txt_out
-
-    all_inputs = depset(
-        direct = [manifest_file] + franca_files + proto_descriptors,
-    )
+    output_files = [pickle_output_file]
 
     args = ctx.actions.args()
-    args.add("--manifest", manifest_file)
+    args.add_all(registry_files, before_each = "--registry-pickle")
     args.add("--output", pickle_output_file)
-    output_files = [pickle_output_file]
     if text_output_file:
         args.add("--text-output", text_output_file)
         output_files.append(text_output_file)
 
-    runfiles_files = output_files + [manifest_file]
-
     ctx.actions.run(
         executable = ctx.executable._runner,
-        inputs = all_inputs,
+        inputs = registry_files,
         outputs = output_files,
         arguments = [args],
-        mnemonic = "LoadDispatchParser",
-        progress_message = "Parsing IDL sources for %{label}",
+        mnemonic = "LoadAndResolveModels",
+        progress_message = "Loading and resolving IDL models for %{label}",
     )
 
-    return [
-        DefaultInfo(
-            files = depset(output_files),
-            runfiles = ctx.runfiles(files = runfiles_files),
-        ),
-    ]
+    return [DefaultInfo(files = depset(output_files))]
 
-load_dispatch_parse = rule(
-    implementation = _load_dispatch_parse_impl,
+load_and_resolve = rule(
+    implementation = _load_and_resolve_impl,
     attrs = {
-        "franca_srcs": attr.label_list(
-            allow_files = True,
-            doc = "Franca source files (e.g. .fidl, .fdepl)",
+        "franca_parsers": attr.label_list(
+            providers = [ParserOutputsInfo],
+            doc = "Targets produced by Franca parser macros.",
+        ),
+        "protobuf_parsers": attr.label_list(
+            providers = [ParserOutputsInfo],
+            doc = "Targets produced by Protobuf parser macros.",
         ),
         "out": attr.output(
-            doc = "Optional pickle output file",
+            doc = "Optional merged registry pickle output file",
         ),
         "txt_out": attr.output(
-            doc = "Optional human-readable text output file",
-        ),
-        "protobuf_deps": attr.label_list(
-            doc = "Protobuf dependencies or descriptor sets",
+            doc = "Optional human-readable merged registry output file",
         ),
         "_runner": attr.label(
-            default = Label("//score/parsers/runner:run_load_dispatch"),
+            default = Label("//score/parsers/runner:run_load_and_resolve"),
             executable = True,
             cfg = "exec",
         ),

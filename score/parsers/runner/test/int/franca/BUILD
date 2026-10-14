@@ -11,7 +11,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
 
-load("//score/parsers/franca_parser:franca_transformer.bzl", "franca_library")
+load("//score/parsers/franca_parser:franca_parser.bzl", "franca_library")
 
 package(default_visibility = ["//visibility:public"])
 

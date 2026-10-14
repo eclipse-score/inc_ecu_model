@@ -13,7 +13,7 @@
 
 load("@rules_proto//proto:defs.bzl", "proto_library")
 load("@rules_python//python:defs.bzl", "py_test")
-load("//score/parsers/protobuf_parser:proto_parser_example.bzl", "proto_parser_example")
+load("//score/parsers/protobuf_parser:proto_parser.bzl", "proto_parser")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -37,7 +37,7 @@ proto_library(
     strip_import_prefix = "test_data",
 )
 
-proto_parser_example(
+proto_parser(
     name = "options_model",
     protobuf_deps = [
         ":custom_options_consumer_proto",

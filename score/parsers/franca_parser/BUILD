@@ -46,10 +46,12 @@ py_library(
 )
 
 py_binary(
-    name = "franca_transformer_runner",
-    srcs = ["franca_transformer_runner.py"],
-    data = glob(["grammar/*.lark"]),
-    main = "franca_transformer_runner.py",
-    visibility = ["//visibility:private"],
-    deps = [":franca_parser"],
+    name = "franca_model_parser_runner",
+    srcs = ["franca_model_parser_runner.py"],
+    main = "franca_model_parser_runner.py",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":franca_parser",
+        "//score/parsers/runner:common",
+    ],
 )

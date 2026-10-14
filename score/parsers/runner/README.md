@@ -1,36 +1,38 @@
 # Parser Runner
 
-The runner dispatches Franca (`.fidl` and `.fdepl`) and Protobuf descriptor-set
-inputs to their adapters in separate processes.
+The load-and-resolve runner merges model artifacts produced by independent
+Franca and Protobuf Bazel parser targets. Bazel schedules and caches each parser
+action; the Python runner only loads and merges their pickle outputs.
 
 ## Bazel targets
 
-- `//score/parsers/runner:run_load_dispatch` accepts input file lists or a JSON
-  manifest.
-- `//score/parsers/runner/test/int/runner:load_dispatch_demo` runs the
-  dispatcher with the repository's Franca and Protobuf integration fixtures.
-- `//score/parsers/runner/test/int/runner:load_dispatch_parse_demo` exposes
+- `franca_parse` in `franca_parser.bzl` creates a Franca model parser
+  target.
+- `protobuf_parse` in `proto_parser.bzl` creates a Protobuf model parser
+  target.
+- `//score/parsers/runner:run_load_and_resolve` accepts registry pickle outputs
+  from parser targets.
+- `//score/parsers/runner/test/int/runner:load_and_resolve_demo` runs the
+  runner with the repository's Franca and Protobuf integration fixtures.
+- `//score/parsers/runner/test/int/runner:load_and_resolve_build_demo` exposes
   parsed outputs as Bazel artifacts for downstream targets.
 
 Run the integration demo as a smoke check:
 
 ```sh
-bazel run //score/parsers/runner/test/int/runner:load_dispatch_demo
+bazel run //score/parsers/runner/test/int/runner:load_and_resolve_demo
 ```
 
 Build the rule-based parsing demo and its output artifacts with:
 
 ```sh
-bazel build //score/parsers/runner/test/int/runner:load_dispatch_parse_demo
+bazel build //score/parsers/runner/test/int/runner:load_and_resolve_build_demo
 ```
 
-The dispatcher is implemented in `load_dispatch.py`. Each adapter runs in a
-separate spawned process and writes its `ModelRegistry` as a pickle file. When
-`return_parsed_object` is true, the parent merges those registries and returns
-the serialized registry bytes. When it is false, callers must provide output
-paths through the corresponding `ParsingPathInfo` values, which receive each
-adapter's serialized registry.
+Each parser target emits a `ModelRegistry` pickle. The runner validates and
+merges the registry artifacts, then writes the aggregate pickle as
+`{"data_types": registry}` and can optionally write its text representation.
 
-The adapters live in `score/parsers/franca_parser` and
+Parser rules and adapters live in `score/parsers/franca_parser` and
 `score/parsers/protobuf_parser`. Runner rules and entry points are in this
 package, with integration input targets under `test/int`.
