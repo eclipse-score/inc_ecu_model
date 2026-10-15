@@ -38,18 +38,18 @@ This directory provides a two-phase pipeline from Bazel-produced Protobuf
     Replaces deferred references with concrete data type definitions using the
     symbol table and namespace.
 
-## Bazel Integration Example
+## Bazel Integration
 
-The included `proto_parser_example` rule lets Bazel own Protobuf compilation and
-import resolution, then consumes descriptor sets in Python:
+The `protobuf_parse` macro lets Bazel own Protobuf compilation and import
+resolution, then consumes descriptor sets in Python:
 
 ```text
 proto_library targets
     -> ProtoInfo.transitive_descriptor_sets
-    -> proto_parser_example Bazel action
-    -> proto_parser_runner Python executable
-    -> ProtobufToDataTypeParser descriptor-set entry point
-    -> dict[str, DataTypeBase]
+    -> protobuf_parse Bazel action
+    -> protobuf_model_parser_runner Python executable
+    -> WrapperProtobufParser
+    -> ModelRegistry pickle keyed by UUID
 ```
 
 This boundary delegates physical path handling to the standard Protobuf Bazel
@@ -80,23 +80,24 @@ proto_library(
     ],
 )
 
-proto_parser_example(
+protobuf_parse(
     name = "activation_decision_model",
     protobuf_deps = [":activation_decision_input_proto"],
 )
 ```
 
-`proto_parser_example` constrains `protobuf_deps` to targets providing
+`protobuf_parse` accepts targets providing
 `ProtoInfo`, collects their `transitive_descriptor_sets`, declares those files
 as action inputs, and passes their paths to the executable. It does not
 reconstruct `--proto_path` from `File.path`, external repository names, or
 `_virtual_imports` paths.
 
 The parser runner forwards the Bazel-provided descriptor artifact paths to
-`ProtobufToDataTypeParser.parse()`. The parser loads and combines those artifacts into a
-`FileDescriptorSet` before model conversion. Bazel `depset` performs
-descriptor-artifact deduplication, while the runner provides the Bazel
-executable boundary.
+`WrapperProtobufParser`, which delegates parsing to
+`ProtobufToDataTypeParser.parse()` and writes the model registry. The parser
+loads and combines those artifacts into a `FileDescriptorSet` before model
+conversion. Bazel `depset` performs descriptor-artifact deduplication, while
+the runner provides the Bazel executable boundary.
 
 The example serializes the complete data type mapping with `pickle`.
 

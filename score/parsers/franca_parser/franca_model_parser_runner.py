@@ -11,30 +11,30 @@
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
 
-"""Bazel executable that forwards descriptor artifacts to ProtobufToDataTypeParser."""
+"""Bazel action entry point for parsing Franca inputs into model artifacts."""
 
 from __future__ import annotations
 
 import argparse
-import pickle
 from collections.abc import Sequence
-from pathlib import Path
 
-from score.parsers.protobuf_parser.api import (
-    ProtobufToDataTypeParser,
-)
+from score.parsers.franca_parser.parser import WrapperFrancaParser
+from score.parsers.runner.common import ParsingPathInfo
 
 
 def main(arguments: Sequence[str] | None = None) -> None:
-    """Parse descriptor artifacts and write the resulting registry as a pickle."""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--descriptor-set", action="append", required=True)
-    parser.add_argument("--output", required=True)
+    parser.add_argument("--src", action="append", default=[])
+    parser.add_argument("--dep", action="append", default=[])
+    parser.add_argument("--registry-output", required=True)
     parsed_arguments = parser.parse_args(arguments)
 
-    registry = ProtobufToDataTypeParser.parse(parsed_arguments.descriptor_set)
-    with Path(parsed_arguments.output).open("wb") as output_file:
-        pickle.dump({"datatypes": registry}, output_file, protocol=pickle.HIGHEST_PROTOCOL)
+    path_info = ParsingPathInfo(
+        src_files=tuple(parsed_arguments.src),
+        result_pickle_path=parsed_arguments.registry_output,
+        ext_info={"dependency_files": tuple(parsed_arguments.dep)},
+    )
+    WrapperFrancaParser(path_info).parse()
 
 
 if __name__ == "__main__":

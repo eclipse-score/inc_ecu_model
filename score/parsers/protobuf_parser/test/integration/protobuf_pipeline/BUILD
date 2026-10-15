@@ -13,7 +13,7 @@
 
 load("@rules_proto//proto:defs.bzl", "proto_library")
 load("@rules_python//python:defs.bzl", "py_test")
-load("//score/parsers/protobuf_parser:proto_parser_example.bzl", "proto_parser_example")
+load("//score/parsers/protobuf_parser:proto_parser.bzl", "protobuf_parse")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -42,7 +42,7 @@ proto_library(
     strip_import_prefix = "test_data",
 )
 
-proto_parser_example(
+protobuf_parse(
     name = "pipeline_model",
     protobuf_deps = [
         ":consumer_proto",

@@ -14,7 +14,9 @@
 """Behavior tests for FIDL parsing and import discovery."""
 
 import unittest
+from tempfile import TemporaryDirectory
 from pathlib import Path
+from unittest.mock import patch
 
 from score.parsers.franca_parser.parser import FrancaParser
 
@@ -47,6 +49,33 @@ class FrancaParserTest(unittest.TestCase):
 
         with self.assertRaisesRegex(FileNotFoundError, "missing_types.fidl.*missing_import.fidl"):
             parser.parse_files()
+
+    def test_preprocess_files_when_preprocessor_not_needed_reads_original_content(self) -> None:
+        content = "#if defined(FEATURE)\nkept\n#else\nexcluded\n#endif\n"
+        parser = FrancaParser(root_files=[], dependency_files=[])
+
+        with TemporaryDirectory() as temp_directory:
+            file_path = Path(temp_directory) / "condition.fidl"
+            file_path.write_text(content, encoding="utf-8")
+
+            result = parser._preprocess_files([file_path], ["FEATURE"], False)
+
+        self.assertEqual(result, {str(file_path.resolve()): content})
+
+    def test_preprocess_files_when_preprocessor_needed_uses_batch_runner(self) -> None:
+        parser = FrancaParser(root_files=[], dependency_files=[])
+        expected = {"condition.fidl": "processed content"}
+
+        with patch("score.parsers.franca_parser.parser.BatchRunner") as batch_runner_type:
+            batch_runner_type.return_value.batch_run.return_value = expected
+
+            result = parser._preprocess_files([Path("condition.fidl")], ["FEATURE"], True)
+
+        batch_runner_type.assert_called_once_with(
+            file_list=[Path("condition.fidl")],
+            defined_list=["FEATURE"],
+        )
+        self.assertEqual(result, expected)
 
 
 if __name__ == "__main__":
