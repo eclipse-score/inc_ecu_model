@@ -22,7 +22,7 @@ from score.ecu_model.model import ModelElement, ModelRegistry
 ParserResult = dict[UUID, ModelElement]
 
 
-def load_and_resolve(
+def load_and_merge(
     registry_pickle_files: Sequence[str],
 ) -> dict[str, object]:
     """Load and merge registry outputs already produced by parser Bazel targets."""

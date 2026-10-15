@@ -20,12 +20,12 @@ import pickle
 from pathlib import Path
 
 from score.parsers.runner.common import _stringify_keys
-from score.parsers.runner.load_and_resolve import load_and_resolve
+from score.parsers.runner.load_and_merge import load_and_merge
 
 
 def main() -> None:
     """Merge parser outputs and write the aggregate result."""
-    parser = argparse.ArgumentParser(description="Load and resolve parser outputs")
+    parser = argparse.ArgumentParser(description="Load and merge parser outputs")
     parser.add_argument(
         "--registry-pickle",
         action="append",
@@ -59,7 +59,7 @@ def main() -> None:
     if text_dump_path is not None:
         text_dump_path.parent.mkdir(parents=True, exist_ok=True)
 
-    result = load_and_resolve(args.registry_pickle)
+    result = load_and_merge(args.registry_pickle)
 
     with output_dump_path.open("wb") as output_file:
         pickle.dump(result, output_file)
@@ -73,6 +73,7 @@ def main() -> None:
     # TBD: resolver, entrance is the selected submodule {datatype, interface, ...} etc
 
     # pickle dump
+
 
 if __name__ == "__main__":
     main()

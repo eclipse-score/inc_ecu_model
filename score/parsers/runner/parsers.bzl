@@ -2,7 +2,7 @@
 
 load(":parser_outputs.bzl", "ParserOutputsInfo")
 
-def _load_and_resolve_impl(ctx):
+def _load_and_merge_impl(ctx):
     registry_files = []
     for parser_target in ctx.attr.franca_parsers + ctx.attr.protobuf_parsers:
         parser_outputs = parser_target[ParserOutputsInfo]
@@ -24,14 +24,14 @@ def _load_and_resolve_impl(ctx):
         inputs = registry_files,
         outputs = output_files,
         arguments = [args],
-        mnemonic = "LoadAndResolveModels",
-        progress_message = "Loading and resolving IDL models for %{label}",
+        mnemonic = "LoadAndMergeModels",
+        progress_message = "Loading and merging IDL models for %{label}",
     )
 
     return [DefaultInfo(files = depset(output_files))]
 
-load_and_resolve = rule(
-    implementation = _load_and_resolve_impl,
+load_and_merge = rule(
+    implementation = _load_and_merge_impl,
     attrs = {
         "franca_parsers": attr.label_list(
             providers = [ParserOutputsInfo],
@@ -48,7 +48,7 @@ load_and_resolve = rule(
             doc = "Optional human-readable merged registry output file",
         ),
         "_runner": attr.label(
-            default = Label("//score/parsers/runner:run_load_and_resolve"),
+            default = Label("//score/parsers/runner:run_load_and_merge"),
             executable = True,
             cfg = "exec",
         ),

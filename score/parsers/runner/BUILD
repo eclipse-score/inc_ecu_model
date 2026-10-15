@@ -12,7 +12,7 @@
 # *******************************************************************************
 
 load("@rules_python//python:defs.bzl", "py_binary", "py_library")
-load(":parsers.bzl", "load_and_resolve")
+load(":parsers.bzl", "load_and_merge")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -27,8 +27,8 @@ py_library(
 )
 
 py_library(
-    name = "load_and_resolve",
-    srcs = ["load_and_resolve.py"],
+    name = "load_and_merge",
+    srcs = ["load_and_merge.py"],
     deps = [
         ":common",
         "//score/ecu_model",
@@ -36,11 +36,11 @@ py_library(
 )
 
 py_binary(
-    name = "run_load_and_resolve",
-    srcs = ["run_load_and_resolve.py"],
-    main = "run_load_and_resolve.py",
+    name = "run_load_and_merge",
+    srcs = ["run_load_and_merge.py"],
+    main = "run_load_and_merge.py",
     deps = [
-        ":load_and_resolve",
+        ":load_and_merge",
         "@pypi//pydantic",
         "@rules_python//python/runfiles",
     ],
