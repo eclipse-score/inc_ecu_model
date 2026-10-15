@@ -8,7 +8,7 @@ def _load_and_merge_impl(ctx):
         parser_outputs = parser_target[ParserOutputsInfo]
         registry_files.append(parser_outputs.registry_file)
 
-    pickle_output_file = ctx.outputs.out if ctx.outputs.out else ctx.actions.declare_file(ctx.label.name + "_output.pkl")
+    pickle_output_file = ctx.outputs.out
     text_output_file = ctx.outputs.txt_out
     output_files = [pickle_output_file]
 
@@ -42,7 +42,8 @@ load_and_merge = rule(
             doc = "Targets produced by Protobuf parser macros.",
         ),
         "out": attr.output(
-            doc = "Optional merged registry pickle output file",
+            mandatory = True,
+            doc = "Merged registry pickle output file",
         ),
         "txt_out": attr.output(
             doc = "Optional human-readable merged registry output file",

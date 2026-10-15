@@ -53,6 +53,7 @@ py_binary(
 
 load_and_merge(
     name = "load_and_merge_build_demo",
+    out = "load_and_merge_build_demo_output.pkl",
     franca_parsers = [":franca_parser_demo"],
     protobuf_parsers = [":protobuf_parser_demo"],
     txt_out = "load_and_merge_build_demo_output.txt",
