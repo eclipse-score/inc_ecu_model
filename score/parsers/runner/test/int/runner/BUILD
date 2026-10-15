@@ -25,7 +25,11 @@ franca_parse(
 
 protobuf_parse(
     name = "protobuf_parser_demo",
-    protobuf_deps = ["//score/parsers/runner/test/int/protobuf:protobuf_files"],
+    protobuf_deps = [
+        "//score/parsers/protobuf_parser/test/integration/protobuf_pipeline:consumer_proto",
+        "//score/parsers/protobuf_parser/test/integration/protobuf_pipeline:nested_references_proto",
+        "//score/parsers/protobuf_parser/test/integration/protobuf_pipeline:collections_and_oneof_proto",
+    ],
 )
 
 py_binary(

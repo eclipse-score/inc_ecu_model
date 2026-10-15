@@ -16,59 +16,6 @@
 load("@rules_proto//proto:defs.bzl", "ProtoInfo")
 load("//score/parsers/runner:parser_outputs.bzl", "ParserOutputsInfo")
 
-def _proto_descriptor_sets_impl(ctx):
-    descriptor_sets = depset(transitive = [
-        protobuf_dep[ProtoInfo].transitive_descriptor_sets
-        for protobuf_dep in ctx.attr.protobuf_deps
-    ])
-    return [DefaultInfo(files = descriptor_sets)]
-
-proto_descriptor_sets = rule(
-    implementation = _proto_descriptor_sets_impl,
-    attrs = {
-        "protobuf_deps": attr.label_list(
-            mandatory = True,
-            providers = [ProtoInfo],
-        ),
-    },
-)
-
-def _proto_parser_impl(ctx):
-    descriptor_sets = depset(transitive = [
-        protobuf_dep[ProtoInfo].transitive_descriptor_sets
-        for protobuf_dep in ctx.attr.protobuf_deps
-    ])
-    output = ctx.actions.declare_file(ctx.label.name + ".pickle")
-
-    args = ctx.actions.args()
-    args.add("--output", output)
-    args.add_all(descriptor_sets, before_each = "--descriptor-set")
-
-    ctx.actions.run(
-        executable = ctx.executable._proto_parser_runner,
-        inputs = descriptor_sets,
-        outputs = [output],
-        arguments = [args],
-        progress_message = "Parsing Protobuf SCORE ECU model %{label}",
-    )
-
-    return [DefaultInfo(files = depset([output]))]
-
-proto_parser = rule(
-    implementation = _proto_parser_impl,
-    attrs = {
-        "protobuf_deps": attr.label_list(
-            mandatory = True,
-            providers = [ProtoInfo],
-        ),
-        "_proto_parser_runner": attr.label(
-            executable = True,
-            cfg = "exec",
-            default = Label("//score/parsers/protobuf_parser:proto_parser_runner"),
-        ),
-    },
-)
-
 def _protobuf_model_parser_impl(ctx):
     descriptor_sets = []
     for protobuf_dep in ctx.attr.protobuf_deps:
