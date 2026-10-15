@@ -34,11 +34,13 @@ class ProtobufPipelineIntegrationTest(unittest.TestCase):
     def test_resolves_nested_struct_and_enum_fields_from_another_message(self):
         registry = load_pipeline_registry()
 
-        nested_struct = _find_type_by_name(registry, "NestedPayload")
-        nested_enum = _find_type_by_name(registry, "NestedState")
-        top_level_enum = _find_type_by_name(registry, "TopLevelState")
+        nested_struct = _find_type_by_name(
+            registry, "NestedPayload", ("integration", "pipeline", "NestedTypeContainer")
+        )
+        nested_enum = _find_type_by_name(registry, "NestedState", ("integration", "pipeline", "NestedTypeContainer"))
+        top_level_enum = _find_type_by_name(registry, "TopLevelState", ("integration", "pipeline"))
 
-        nested_type_consumer = _find_type_by_name(registry, "NestedTypeConsumer")
+        nested_type_consumer = _find_type_by_name(registry, "NestedTypeConsumer", ("integration", "pipeline"))
         self.assertIsInstance(nested_struct, StructDataType)
         self.assertIsInstance(nested_enum, EnumDataType)
         self.assertIsInstance(top_level_enum, EnumDataType)
@@ -50,11 +52,12 @@ class ProtobufPipelineIntegrationTest(unittest.TestCase):
 
     def test_returns_resolved_collections_and_oneof_models(self):
         registry = load_pipeline_registry()
-        shape = _find_type_by_name(registry, "Shape")
-        child = _find_type_by_name(registry, "Child")
-        state = _find_type_by_name(registry, "State")
-        external = _find_type_by_name(registry, "External")
-        external_entry = _find_type_by_name(registry, "CountsEntry")
+        package_namespace = ("integration", "pipeline", "collections")
+        shape = _find_type_by_name(registry, "Shape", package_namespace)
+        child = _find_type_by_name(registry, "Child", package_namespace)
+        state = _find_type_by_name(registry, "State", package_namespace)
+        external = _find_type_by_name(registry, "External", package_namespace)
+        external_entry = _find_type_by_name(registry, "CountsEntry", (*package_namespace, "External"))
 
         self.assertIsInstance(shape, StructDataType)
         self.assertIsInstance(child, StructDataType)
@@ -82,8 +85,8 @@ class ProtobufPipelineIntegrationTest(unittest.TestCase):
     def test_resolves_cross_file_references_from_a_direct_import(self):
         registry = load_pipeline_registry()
 
-        payload = _find_type_by_name(registry, "Payload")
-        request = _find_type_by_name(registry, "Request")
+        payload = _find_type_by_name(registry, "Payload", ("integration", "shared"))
+        request = _find_type_by_name(registry, "Request", ("integration", "consumer"))
         self.assertIsInstance(payload, StructDataType)
         self.assertIsInstance(request, StructDataType)
         fields = {field.name.as_str: field for field in request.fields}
@@ -104,11 +107,15 @@ def load_pipeline_registry():
     return pickle.loads(output_path.read_bytes())
 
 
-def _find_type_by_name(registry, name):
+def _find_type_by_name(registry, name, expected_namespace):
     matches = [element for element in registry.values() if element.name is not None and element.name.as_str == name]
     if len(matches) != 1:
         raise AssertionError(f"Expected one data type named {name}, found {len(matches)}")
-    return matches[0]
+    element = matches[0]
+    actual_namespace = tuple(part.as_str for part in element.namespace.names)
+    if actual_namespace != expected_namespace:
+        raise AssertionError(f"Expected namespace {expected_namespace} for {name}, found {actual_namespace}")
+    return element
 
 
 if __name__ == "__main__":

@@ -26,10 +26,9 @@ class ProtobufImportVisibilityIntegrationTest(unittest.TestCase):
 
     def test_given_public_import_chain_when_compiling_then_transitive_symbol_is_resolved(self):
         registry = load_public_import_registry()
-        names = {element.name.as_str for element in registry.values() if element.name is not None}
 
-        self.assertIn("AMessage", names)
-        self.assertIn("CMessage", names)
+        _find_type_by_name(registry, "AMessage", ("demo", "a"))
+        _find_type_by_name(registry, "CMessage", ("demo", "c"))
 
 
 def load_public_import_registry():
@@ -37,6 +36,17 @@ def load_public_import_registry():
     runfiles_root = Path(os.environ["RUNFILES_DIR"])
     output_path = next(runfiles_root.rglob("public_import_model_registry.pkl"))
     return pickle.loads(output_path.read_bytes())
+
+
+def _find_type_by_name(registry, name, expected_namespace):
+    matches = [element for element in registry.values() if element.name is not None and element.name.as_str == name]
+    if len(matches) != 1:
+        raise AssertionError(f"Expected one data type named {name}, found {len(matches)}")
+    element = matches[0]
+    actual_namespace = tuple(part.as_str for part in element.namespace.names)
+    if actual_namespace != expected_namespace:
+        raise AssertionError(f"Expected namespace {expected_namespace} for {name}, found {actual_namespace}")
+    return element
 
 
 if __name__ == "__main__":

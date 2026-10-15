@@ -32,7 +32,8 @@ class ProtobufOptionsIntegrationTest(unittest.TestCase):
     def test_promotes_custom_option_descriptions_and_flattens_other_properties(self):
         registry = load_options_registry()
 
-        request = _find_type_by_name(registry, "ConfiguredRequest")
+        deployment_namespace = ("integration", "deployment")
+        request = _find_type_by_name(registry, "ConfiguredRequest", deployment_namespace)
         self.assertIsInstance(request, StructDataType)
         fields = {field.name.as_str: field for field in request.fields}
         self.assertEqual(request.description, "Request description")
@@ -70,7 +71,7 @@ class ProtobufOptionsIntegrationTest(unittest.TestCase):
             },
         )
 
-        file_description_default = _find_type_by_name(registry, "FileDescriptionDefault")
+        file_description_default = _find_type_by_name(registry, "FileDescriptionDefault", deployment_namespace)
         self.assertIsInstance(file_description_default, StructDataType)
         self.assertEqual(file_description_default.description, "")
         self.assertEqual(
@@ -78,7 +79,7 @@ class ProtobufOptionsIntegrationTest(unittest.TestCase):
             {"integration.deployment.file_deployment.scope": "file"},
         )
 
-        state = _find_type_by_name(registry, "ConfiguredState")
+        state = _find_type_by_name(registry, "ConfiguredState", deployment_namespace)
         self.assertIsInstance(state, EnumDataType)
         self.assertEqual(state.description, "State description")
         self.assertEqual(
@@ -99,12 +100,12 @@ class ProtobufOptionsIntegrationTest(unittest.TestCase):
             },
         )
 
-        state_16 = _find_type_by_name(registry, "ConfiguredState16")
+        state_16 = _find_type_by_name(registry, "ConfiguredState16", deployment_namespace)
         self.assertIsInstance(state_16, EnumDataType)
         self.assertEqual(state_16.size, 16)
         self.assertFalse(state_16.signed)
 
-        state_32 = _find_type_by_name(registry, "ConfiguredState32")
+        state_32 = _find_type_by_name(registry, "ConfiguredState32", deployment_namespace)
         self.assertIsInstance(state_32, EnumDataType)
         self.assertEqual(state_32.size, 32)
         self.assertFalse(state_32.signed)
@@ -117,7 +118,8 @@ class ProtobufOptionsIntegrationTest(unittest.TestCase):
             "google.protobuf.FileOptions.optimize_for": "LITE_RUNTIME",
             "google.protobuf.FileOptions.deprecated": True,
         }
-        message = _find_type_by_name(registry, "StandardOptionMessage")
+        standard_namespace = ("integration", "standard_options")
+        message = _find_type_by_name(registry, "StandardOptionMessage", standard_namespace)
         self.assertIsInstance(message, StructDataType)
         self.assertEqual(
             message.deployment_properties,
@@ -136,7 +138,7 @@ class ProtobufOptionsIntegrationTest(unittest.TestCase):
             {"google.protobuf.FieldOptions.packed": False},
         )
 
-        state = _find_type_by_name(registry, "StandardOptionState")
+        state = _find_type_by_name(registry, "StandardOptionState", standard_namespace)
         self.assertIsInstance(state, EnumDataType)
         self.assertEqual(
             state.deployment_properties,
@@ -160,11 +162,15 @@ def load_options_registry():
     return pickle.loads(output_path.read_bytes())
 
 
-def _find_type_by_name(registry, name):
+def _find_type_by_name(registry, name, expected_namespace):
     matches = [element for element in registry.values() if element.name is not None and element.name.as_str == name]
     if len(matches) != 1:
         raise AssertionError(f"Expected one data type named {name}, found {len(matches)}")
-    return matches[0]
+    element = matches[0]
+    actual_namespace = tuple(part.as_str for part in element.namespace.names)
+    if actual_namespace != expected_namespace:
+        raise AssertionError(f"Expected namespace {expected_namespace} for {name}, found {actual_namespace}")
+    return element
 
 
 if __name__ == "__main__":
