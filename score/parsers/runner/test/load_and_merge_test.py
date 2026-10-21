@@ -114,7 +114,7 @@ class TestLoadAndMerge(unittest.TestCase):
         elements = [
             ModelElement(description="generic parser"),
             Activity(name=Identifier("Activity")),
-            Broadcast(name=Identifier("Event")),
+            Broadcast(name="Event"),
         ]
         inputs = [self.write_registry(f"parser_{index}.pkl", element) for index, element in enumerate(elements)]
 
@@ -265,12 +265,18 @@ class TestStringifyKeys(unittest.TestCase):
         self.assertEqual(_stringify_keys(Record({1: ("value",)})), {"payload": {"1": ["value"]}})
 
     def test_pydantic_fields_are_converted_recursively(self) -> None:
-        event = Broadcast(name=Identifier("Event"))
+        event = Broadcast(name="Event")
         self.addCleanup(ModelRegistry.elements.pop, event.id)
 
         self.assertEqual(
             _stringify_keys(event),
-            {"id": event.id, "description": "", "name": {"root": "Event"}, "outputs": []},
+            {
+                "id": event.id,
+                "description": "",
+                "name": {"root": "Event"},
+                "outputs": [],
+                "selective": False,
+            },
         )
 
     def test_object_attributes_are_converted_recursively(self) -> None:

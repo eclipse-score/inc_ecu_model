@@ -16,6 +16,7 @@
 import os
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from lark.exceptions import VisitError
 
@@ -28,6 +29,8 @@ from score.ecu_model.data_types.struct import StructDataType
 from score.ecu_model.data_types.typedef import TypedefDataType
 from score.ecu_model.model import ModelRegistry
 from score.parsers.franca_parser.parser import FrancaParser
+from score.parsers.franca_parser.transformer.fdepl_transformer import FDEPLTransformer
+from score.parsers.franca_parser.transformer.fidl_transformer import FIDLTransformer
 from score.parsers.franca_parser.transformer.file_graph_transformer import FrancaFileGraphTransformer
 
 TEST_DATA_DIRECTORY = Path(__file__).parent / "test_data" / "datatype_definitions"
@@ -36,6 +39,93 @@ REFERENCE_DATA_DIRECTORY = Path(__file__).parent / "test_data" / "reference_reso
 
 class FIDLDatatypeTransformerTest(unittest.TestCase):
     """Verify FIDL datatype declarations transform into Orion models."""
+
+    def test_integer_callbacks_share_literal_conversion_and_errors(self) -> None:
+        callbacks = {
+            "lower": lambda value: FIDLTransformer.lower_dim(value)[1],
+            "upper": lambda value: FIDLTransformer.upper_dim(value)[1],
+            "fidl_integer": FIDLTransformer.integer,
+            "fdepl_integer": FDEPLTransformer.integer,
+        }
+        for name, callback in callbacks.items():
+            for literal, expected in (
+                ("0", 0),
+                ("00", 0),
+                ("16", 16),
+                ("0x10", 16),
+                ("0X10", 16),
+                ("0b10000", 16),
+                ("0B10000", 16),
+            ):
+                with self.subTest(callback=name, literal=literal):
+                    self.assertEqual(callback(literal), expected)
+            for literal in ("08", "010", "invalid"):
+                with self.subTest(callback=name, literal=literal), self.assertRaises(ValueError):
+                    callback(literal)
+
+    def test_array_bounds_and_enum_values_share_integer_syntax(self) -> None:
+        for lower, upper in (("2", "16"), ("0x2", "0x10"), ("0b10", "0b10000")):
+            with self.subTest(lower=lower, upper=upper), TemporaryDirectory() as directory:
+                source_file = Path(directory) / "integers.fidl"
+                source_file.write_text(
+                    "package example typeCollection Types { "
+                    f"array Samples of UInt8[{lower},{upper}] "
+                    f"enumeration Limits {{ Lower = {lower} Upper = {upper} }} }}",
+                    encoding="utf-8",
+                )
+                graph = FrancaFileGraphTransformer(FrancaParser([source_file], []).parse_files())
+                graph.transform_files()
+                array, enum = graph.transformed_files[source_file.resolve()].type_collections[0].datatypes
+                self.assertEqual((array.dimension_min, array.dimension_max), (2, 16))
+                self.assertEqual([value.value for value in enum.values], [2, 16])
+
+    def test_array_bounds_and_enum_values_reject_nonzero_decimal_leading_zeros(self) -> None:
+        for literal in ("08", "010"):
+            for declaration in (
+                f"array Samples of UInt8[{literal},16]",
+                f"array Samples of UInt8[0,{literal}]",
+                f"enumeration Limits {{ Value = {literal} }}",
+            ):
+                with self.subTest(declaration=declaration), TemporaryDirectory() as directory:
+                    source_file = Path(directory) / "invalid.fidl"
+                    source_file.write_text(
+                        f"package example typeCollection Types {{ {declaration} }}", encoding="utf-8"
+                    )
+                    graph = FrancaFileGraphTransformer(FrancaParser([source_file], []).parse_files())
+                    with self.assertRaisesRegex(VisitError, "invalid literal for int"):
+                        graph.transform_files()
+
+    def test_transform_files_given_valid_tc_versions_expect_datatype_declarations(self) -> None:
+        for collection_name in ("Types", ""):
+            for major, minor in ((1, 0), (0, 1)):
+                with (
+                    self.subTest(collection_name=collection_name, major=major, minor=minor),
+                    TemporaryDirectory() as directory,
+                ):
+                    source_file = Path(directory) / "types.fidl"
+                    source_file.write_text(
+                        f"package example typeCollection {collection_name} {{ "
+                        f"version {{ major {major} minor {minor} }} struct Payload {{}} }}",
+                        encoding="utf-8",
+                    )
+                    parser = FrancaParser(root_files=[source_file], dependency_files=[])
+                    graph = FrancaFileGraphTransformer(parser.parse_files())
+                    graph.transform_files()
+                    file_model = graph.transformed_files[source_file.resolve()]
+                    self.assertEqual(file_model.type_collections[0].datatypes[0].name.as_str, "Payload")
+
+    def test_transform_files_given_zero_tc_version_expect_validation_error(self) -> None:
+        for collection_name in ("Types", ""):
+            with self.subTest(collection_name=collection_name), TemporaryDirectory() as directory:
+                source_file = Path(directory) / "types.fidl"
+                source_file.write_text(
+                    f"package example typeCollection {collection_name} {{ "
+                    "version { major 0 minor 0 } struct Payload {} }",
+                    encoding="utf-8",
+                )
+                parser = FrancaParser(root_files=[source_file], dependency_files=[])
+                with self.assertRaisesRegex(VisitError, "greater than zero"):
+                    FrancaFileGraphTransformer(parser.parse_files()).transform_files()
 
     def transform_to_registry(
         self,
@@ -166,7 +256,7 @@ class FIDLDatatypeTransformerTest(unittest.TestCase):
         parser = FrancaParser(root_files=[source_file], dependency_files=[])
 
         # When the FIDL model root validates top-level declaration names.
-        with self.assertRaisesRegex(VisitError, "Duplicate TypeCollection ID SharedTypes"):
+        with self.assertRaisesRegex(VisitError, "Duplicate ID SharedTypes"):
             FrancaFileGraphTransformer(parser.parse_files()).transform_files()
 
     def test_transform_files_given_circular_imports_expect_pending_references_resolved(self) -> None:

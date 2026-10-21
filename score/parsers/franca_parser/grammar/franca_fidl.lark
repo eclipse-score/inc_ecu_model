@@ -69,11 +69,9 @@ fi_type_collection: \
 //  INTERFACES
 // ------------------------------------------------------------------------------------------------
 //  General:
-//  *   An Interface is identified by its fully qualified name and its major version
-//  *   This means there MUST NOT exist more than one interface definition with the same pair of
-//      qualified name and major version.
-//  *   In consequence Franca allows multiple interface definitions with the same qualified name,
-//      if each interface definition has a unique major version.
+//  *   Interface and named type collection names must be unique within a FIDL file.
+//  *   Different major or minor versions do not permit duplicate interface names.
+//  *   The interface version is syntactically optional; omission passes parsing but fails semantic transformation.
 
 //  Inheritance:
 //  *   Franca supports interface inheritance to derive a new interface from an existing base
@@ -229,10 +227,12 @@ fi_enumeration_type_body: \
 //  *   Also for broadcasts Franca++ allows overloading. The same rules for Methods apply
 fi_broadcast: \
     f_annotation_block? \
-    "broadcast" fi_id_with_selector "selective"? \
+    "broadcast" fi_id_with_selector fi_selective? \
     "{" \
         fi_broadcast_output? \
     "}"
+
+fi_selective: "selective"
 
 fi_broadcast_output: "out" "{" fi_field* "}"
 

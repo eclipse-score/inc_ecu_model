@@ -32,6 +32,7 @@ py_library(
         "//score/parsers/franca_parser:__subpackages__",
     ],
     deps = [
+        "//score/ecu_model/communication",
         "//score/ecu_model/data_types",
         "//score/parsers/franca_parser:deployment_property_applier",
         "//score/parsers/franca_parser/model",

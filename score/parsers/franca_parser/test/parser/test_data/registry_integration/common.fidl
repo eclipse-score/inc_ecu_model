@@ -1,0 +1,16 @@
+package integration.common
+
+typeCollection {
+    version { major 1 minor 0 }
+    typedef RequestId is UInt64
+}
+
+typeCollection CommonTypes {
+    version { major 1 minor 0 }
+    typedef Label is String
+    enumeration Status { UNKNOWN READY = 0x10 FAILED = 0b10001 }
+    struct Payload { RequestId id Label label Status status }
+    array Payloads of Payload[0,16]
+    union Value { UInt32 number Label text }
+    map PayloadByLabel { Label to Payload }
+}

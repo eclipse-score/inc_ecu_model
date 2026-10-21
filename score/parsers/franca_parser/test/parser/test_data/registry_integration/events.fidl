@@ -1,0 +1,14 @@
+package integration.events
+
+import integration.common.CommonTypes.* from "common.fidl"
+import "service.fidl"
+
+typeCollection EventTypes {
+    struct Event { CommonTypes.Payload payload integration.service.ServiceTypes.Envelope envelope }
+}
+
+interface Notifications {
+    version { major 1 minor 2 }
+    broadcast received { out { EventTypes.Event event } }
+    attribute CommonTypes.Status state readonly noSubscriptions
+}

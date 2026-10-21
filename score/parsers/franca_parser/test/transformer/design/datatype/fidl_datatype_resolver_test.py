@@ -26,6 +26,7 @@ from score.parsers.franca_parser.model.fidl.type_collection import (
     TypeCollection,
 )
 from score.parsers.franca_parser.model.franca_file import (
+    FrancaFileModel,
     ImportedNamespace,
 )
 from score.parsers.franca_parser.transformer.resolver.fidl_datatype_resolver import (
@@ -54,6 +55,19 @@ def struct(name: str) -> StructDataType:
 class FIDLDataTypeResolverTest(unittest.TestCase):
     """Verify FIDL named and anonymous type collection resolution semantics."""
 
+    def test_file_model_allows_multiple_anonymous_type_collections(self) -> None:
+        first = struct("First")
+        second = struct("Second")
+        file_model = FIDLFileModel(
+            file_path=Path("anonymous.fidl"),
+            namespace=qualified_name("example"),
+            type_collections=[type_collection(None), type_collection(None, first), type_collection(None, second)],
+        )
+
+        self.assertEqual(len(file_model.type_collections), 3)
+        self.assertIs(file_model.lookup_datatype_in_tc("example.First"), first)
+        self.assertIs(file_model.lookup_datatype_in_tc("example.Second"), second)
+
     def test_resolve_given_local_named_collection_reference_expect_declared_datatype(self) -> None:
         local_payload = struct("LocalPayload")
         local_types = type_collection("LocalTypes", local_payload)
@@ -68,6 +82,43 @@ class FIDLDataTypeResolverTest(unittest.TestCase):
         )
 
         self.assertIs(resolved_datatype, local_payload)
+
+    def test_resolve_given_other_named_collection_requires_collection_name(self) -> None:
+        referenced_payload = struct("SharedPayload")
+        primary_types = type_collection("PrimaryTypes")
+        secondary_types = type_collection("SecondaryTypes", referenced_payload)
+        local_file = FIDLFileModel(
+            file_path=Path("local.fidl"),
+            namespace=qualified_name("example.local"),
+            type_collections=[primary_types, secondary_types],
+        )
+        resolver = FIDLDataTypeResolver({local_file.file_path: local_file})
+
+        resolved_datatype = resolver.resolve(qualified_name("SecondaryTypes.SharedPayload"), local_file, primary_types)
+
+        self.assertIs(resolved_datatype, referenced_payload)
+        resolved_fully_qualified = resolver.resolve(
+            qualified_name("example.local.SecondaryTypes.SharedPayload"), local_file, primary_types
+        )
+        self.assertIs(resolved_fully_qualified, referenced_payload)
+        with self.assertRaisesRegex(ValueError, "Referenced datatype 'SharedPayload'.*was not found"):
+            resolver.resolve(qualified_name("SharedPayload"), local_file, primary_types)
+
+    def test_resolve_given_other_anonymous_collection_allows_short_name(self) -> None:
+        anonymous_payload = struct("AnonymousPayload")
+        named_types = type_collection("NamedTypes")
+        anonymous_types = type_collection(None, anonymous_payload)
+        local_file = FIDLFileModel(
+            file_path=Path("local.fidl"),
+            namespace=qualified_name("example.local"),
+            type_collections=[named_types, anonymous_types],
+        )
+
+        resolved_datatype = FIDLDataTypeResolver({local_file.file_path: local_file}).resolve(
+            qualified_name("AnonymousPayload"), local_file, named_types
+        )
+
+        self.assertIs(resolved_datatype, anonymous_payload)
 
     def test_resolve_given_wildcard_import_expect_named_anonymous_and_overlap_references(self) -> None:
         shared_payload = struct("SharedPayload")
@@ -138,6 +189,38 @@ class FIDLDataTypeResolverTest(unittest.TestCase):
         self.assertIs(resolved_short, shared_payload)
         self.assertIs(resolved_full, shared_payload)
 
+    def test_resolve_given_import_targeting_named_collection_requires_collection_name(self) -> None:
+        shared_payload = struct("SharedPayload")
+        shared_file = FIDLFileModel(
+            file_path=Path("shared.fidl"),
+            namespace=qualified_name("example.shared"),
+            type_collections=[type_collection("SharedTypes", shared_payload)],
+        )
+
+        for is_wildcard in (True, False):
+            with self.subTest(is_wildcard=is_wildcard):
+                root_types = type_collection("RootTypes")
+                root_file = FIDLFileModel(
+                    file_path=Path("root.fidl"),
+                    namespace=qualified_name("example.root"),
+                    imported_files=[
+                        ImportedNamespace(
+                            shared_file.file_path,
+                            qualified_name("example.shared.SharedTypes"),
+                            is_wildcard,
+                        )
+                    ],
+                    type_collections=[root_types],
+                )
+                resolver = FIDLDataTypeResolver({shared_file.file_path: shared_file, root_file.file_path: root_file})
+
+                with self.assertRaisesRegex(ValueError, "Referenced datatype 'SharedPayload'.*was not found"):
+                    resolver.resolve(qualified_name("SharedPayload"), root_file, root_types)
+                self.assertIs(
+                    resolver.resolve(qualified_name("SharedTypes.SharedPayload"), root_file, root_types),
+                    shared_payload,
+                )
+
     def test_resolve_given_equivalent_reference_forms_expect_one_declaration_not_ambiguity(self) -> None:
         shared_payload = struct("SharedPayload")
         shared_file = FIDLFileModel(
@@ -161,15 +244,17 @@ class FIDLDataTypeResolverTest(unittest.TestCase):
         self.assertIs(resolved_datatype, shared_payload)
 
     def test_resolve_given_matching_definitions_from_two_imports_expect_ambiguity_error(self) -> None:
+        left_payload = struct("SharedPayload")
+        right_payload = struct("SharedPayload")
         left_file = FIDLFileModel(
             file_path=Path("left.fidl"),
             namespace=qualified_name("example.shared"),
-            type_collections=[type_collection("SharedTypes", struct("SharedPayload"))],
+            type_collections=[type_collection("SharedTypes", left_payload)],
         )
         right_file = FIDLFileModel(
             file_path=Path("right.fidl"),
             namespace=qualified_name("other.shared"),
-            type_collections=[type_collection("SharedTypes", struct("SharedPayload"))],
+            type_collections=[type_collection("SharedTypes", right_payload)],
         )
         root_types = type_collection("RootTypes")
         root_file = FIDLFileModel(
@@ -199,6 +284,34 @@ class FIDLDataTypeResolverTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "Referenced datatype 'MissingPayload' in 'root.fidl' was not found"):
             resolver.resolve(qualified_name("MissingPayload"), root_file, root_types)
+
+    def test_single_match_required_without_definition_raises_contextual_error(self) -> None:
+        root_file = FIDLFileModel(
+            file_path=Path("root.fidl"),
+            namespace=qualified_name("example.root"),
+        )
+
+        with self.assertRaisesRegex(ValueError, "Referenced datatype 'MissingPayload' in 'root.fidl' was not found"):
+            FIDLDataTypeResolver._single_match(
+                qualified_name("MissingPayload"),
+                root_file,
+                [],
+                required=True,
+            )
+
+    def test_resolve_imports_skips_non_fidl_files(self) -> None:
+        imported_path = Path("deployment.fdepl")
+        imported_file = FrancaFileModel(file_path=imported_path, namespace=qualified_name("example.deployment"))
+        root_types = type_collection("RootTypes")
+        root_file = FIDLFileModel(
+            file_path=Path("root.fidl"),
+            namespace=qualified_name("example.root"),
+            imported_files=[ImportedNamespace(imported_path, qualified_name("example.deployment"))],
+            type_collections=[root_types],
+        )
+        resolver = FIDLDataTypeResolver({imported_path: imported_file, root_file.file_path: root_file})
+
+        self.assertIsNone(resolver.resolve_imports(qualified_name("MissingPayload"), root_file))
 
 
 if __name__ == "__main__":

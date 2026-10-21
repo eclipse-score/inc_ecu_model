@@ -20,7 +20,10 @@ package(default_visibility = ["//visibility:private"])
 
 franca_parse(
     name = "franca_parser_demo",
-    srcs = ["//score/parsers/franca_parser/test/transformer/file_graph/test_data:direct_import_root"],
+    srcs = [
+        "interface.fidl",
+        "//score/parsers/franca_parser/test/transformer/file_graph/test_data:direct_import_root",
+    ],
     deps = ["//score/parsers/franca_parser/test/transformer/file_graph/test_data:direct_import_dependency"],
 )
 

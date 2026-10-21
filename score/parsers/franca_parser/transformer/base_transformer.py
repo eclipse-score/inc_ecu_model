@@ -23,6 +23,11 @@ def franca_identifier(name: object) -> Identifier:
     return Identifier(str(name).replace("^", ""))
 
 
+def franca_integer(value: object) -> int:
+    """Parse a Franca integer token using automatic base detection."""
+    return int(str(value), 0)
+
+
 class FrancaFileTransformer(Transformer):
     """Base Lark transformer for a single Franca source file."""
 

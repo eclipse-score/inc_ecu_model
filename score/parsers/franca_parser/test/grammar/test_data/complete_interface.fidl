@@ -1,0 +1,86 @@
+package example
+
+/*
+**About this file**
+
+This file is a grammar-test fixture for a Franca FIDL interface. It is not intended to show that every construct in the
+file is supported by model transformation.
+
+At the top level, a FIDL model can contain:
+
+* interface definitions (defined within the `interface` blocks) and 
+* type definitions (defined within `typeCollection` blocks).
+
+This file demonstrates the interface definitions only.
+
+The interface exercises a representative selection of syntax; it is not an exhaustive list of all possible constructs or
+combinations.
+*/
+
+<** @description: Interface documentation **>
+interface Sample extends Base manages Managed, other.Managed {
+    // 1. Illustrates `version`
+    version { major 1 minor 2 }
+
+    // 2. Illustrates type definitions directly within the interface.
+    // * Shared types can be placed in the `typeCollection` blocks.
+    // * Types that are specific to this interface can be defined directly within the interface.
+    public typedef Alias is UInt32
+    public array Items of Alias[0,25]
+    public enumeration Errors { OK FAILED = 0x10 }
+    public struct Payload polymorphic { Alias value }
+    public union Value { UInt32 number String text }
+    public map Lookup { String to Payload }
+    const UInt32 limit = 1 + 2 * 3
+
+    // 3. Illustrates the interface operations
+    // FIDL interface members include attributes, methods, and broadcasts.
+
+    // 3.1 Illustrates attributes
+    attribute Payload[0,25] value noRead readonly noSubscriptions
+    // An attribute is a remotely accessible interface property, not a process-global variable. SOME/IP has a related
+    // concept called a Field; the exact mapping depends on the deployment.
+
+    // 3.2 Illustrates methods
+    method request:first {
+        in { <** @description: Input **> Alias input }
+        out { Items result }
+        <** @description: Failure **>
+        error Errors
+    }
+    method request:second fireAndForget { in { String text } }
+    method inlineError { error extends Errors { EXTRA = 0b11 } }
+    // Methods are request/reply interactions, roughly similar to function calls.
+    // `in` lists request arguments, and `out` lists response values.
+    // `fireAndForget` means that no reply is expected;
+
+    // 3.3 Illustrates broadcasts
+    broadcast changed:first selective { out { Payload data } }
+    broadcast changed:second {}
+    // Broadcasts are server-originated event notifications. `selective` allows the server to target only some clients.
+
+    // 4. Illustrates `contract`
+    contract {
+        vars { UInt32 count = 0; }
+        PSM {
+            initial Idle
+            state Idle {
+                on call request:first [count < limit] -> Busy {
+                    if (count == 0) { count = count + 1 } else { count = 0 }
+                }
+                on set value -> Idle
+                on update value -> Idle
+            }
+            state Busy {
+                on respond request:first -> Idle
+                on error request:first -> Idle
+                on signal changed:first -> Idle
+            }
+        }
+    }
+    // The PSM specifies permitted interaction states and transitions for a client-provider connection. Guards and
+    // actions can further constrain transitions and update state variables.
+
+    // 5. Illustrates that a type definition can follow the contract within the interface.
+    struct AfterContract { ByteBuffer bytes }
+}
