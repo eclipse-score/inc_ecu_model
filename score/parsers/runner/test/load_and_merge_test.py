@@ -110,7 +110,7 @@ class TestLoadAndMerge(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "Duplicate model element ID"):
             load_and_merge([first, second])
 
-    def test_cli_merges_model_types_and_output_can_be_merged_again(self) -> None:
+    def test_cli_merges_model_types_into_final_result(self) -> None:
         elements = [
             ModelElement(description="generic parser"),
             Activity(name=Identifier("Activity")),
@@ -120,22 +120,25 @@ class TestLoadAndMerge(unittest.TestCase):
 
         output = self.run_merge(inputs, "merged.pkl")
 
-        self.assertEqual(ModelRegistry.deserialize(output.read_bytes()), len(elements))
-        self.assertEqual(ModelRegistry.elements, {element.id: element for element in elements})
+        result = pickle.loads(output.read_bytes())
+        self.assertEqual(result, {"data_types": {element.id: element for element in elements}})
         text = json.loads(output.with_suffix(".json").read_text(encoding="utf-8"))
+        self.assertEqual(set(text), {"data_types"})
         self.assertEqual(set(text["data_types"]), {str(element.id) for element in elements})
+        self.assertEqual(text, json.loads(json.dumps(_stringify_keys(result), default=str)))
 
-        extra = ModelElement(description="another parser")
-        extra_input = self.write_registry("extra.pkl", extra)
-        chained_output = self.run_merge([str(output), extra_input], "chained.pkl")
+    def test_cli_final_result_is_not_a_raw_registry_input(self) -> None:
+        element = ModelElement(description="parser")
+        registry = self.write_registry("parser.pkl", element)
+        output = self.run_merge([registry], "merged.pkl")
 
-        self.assertEqual(ModelRegistry.deserialize(chained_output.read_bytes()), len(elements) + 1)
-        self.assertEqual(ModelRegistry.elements, {element.id: element for element in [*elements, extra]})
+        with self.assertRaisesRegex(RuntimeError, "Payload does not contain a ModelRegistry"):
+            load_and_merge([str(output)])
 
-    def test_cli_empty_list_writes_empty_registry(self) -> None:
+    def test_cli_empty_list_writes_empty_result(self) -> None:
         output = self.run_merge([], "empty.pkl")
 
-        self.assertEqual(ModelRegistry.deserialize(output.read_bytes()), 0)
+        self.assertEqual(pickle.loads(output.read_bytes()), {"data_types": {}})
 
     def invoke_main(self, arguments: list[str], workspace: str = "") -> None:
         with (
@@ -165,7 +168,7 @@ class TestLoadAndMerge(unittest.TestCase):
             ]
         )
 
-        self.assertEqual(ModelRegistry.deserialize(output.read_bytes()), 2)
+        self.assertEqual(pickle.loads(output.read_bytes()), {"data_types": {first.id: first, second.id: second}})
         self.assertEqual(ModelRegistry.elements, {first.id: first, second.id: second})
         text = json.loads(text_output.read_text(encoding="utf-8"))
         self.assertEqual(set(text["data_types"]), {str(first.id), str(second.id)})
@@ -175,7 +178,7 @@ class TestLoadAndMerge(unittest.TestCase):
 
         self.invoke_main(["--output", str(output)])
 
-        self.assertEqual(ModelRegistry.deserialize(output.read_bytes()), 0)
+        self.assertEqual(pickle.loads(output.read_bytes()), {"data_types": {}})
         self.assertEqual(list(output.parent.iterdir()), [output])
 
     def test_main_resolves_relative_outputs_against_workspace(self) -> None:
@@ -184,7 +187,7 @@ class TestLoadAndMerge(unittest.TestCase):
             workspace=str(self.directory),
         )
 
-        self.assertEqual(ModelRegistry.deserialize((self.directory / "binary/merged.pkl").read_bytes()), 0)
+        self.assertEqual(pickle.loads((self.directory / "binary/merged.pkl").read_bytes()), {"data_types": {}})
         self.assertEqual(
             json.loads((self.directory / "text/merged.json").read_text(encoding="utf-8")),
             {"data_types": {}},
@@ -200,14 +203,14 @@ class TestLoadAndMerge(unittest.TestCase):
             workspace=str(workspace),
         )
 
-        self.assertEqual(ModelRegistry.deserialize(output.read_bytes()), 0)
+        self.assertEqual(pickle.loads(output.read_bytes()), {"data_types": {}})
         self.assertTrue(text_output.is_file())
         self.assertFalse(workspace.exists())
 
     def test_main_workspace_without_text_output(self) -> None:
         self.invoke_main(["--output", "merged.pkl"], workspace=str(self.directory))
 
-        self.assertEqual(ModelRegistry.deserialize((self.directory / "merged.pkl").read_bytes()), 0)
+        self.assertEqual(pickle.loads((self.directory / "merged.pkl").read_bytes()), {"data_types": {}})
 
     def test_main_requires_output_argument(self) -> None:
         with patch("sys.stderr"), self.assertRaises(SystemExit) as raised:
@@ -223,7 +226,7 @@ class TestLoadAndMerge(unittest.TestCase):
 
         self.assertFalse(output.exists())
 
-    def test_script_entry_point_writes_registry(self) -> None:
+    def test_script_entry_point_writes_final_result(self) -> None:
         output = self.directory / "script.pkl"
         script = Path(__file__).parents[1] / "run_load_and_merge.py"
 
@@ -233,7 +236,7 @@ class TestLoadAndMerge(unittest.TestCase):
         ):
             run_path(str(script), run_name="__main__")
 
-        self.assertEqual(ModelRegistry.deserialize(output.read_bytes()), 0)
+        self.assertEqual(pickle.loads(output.read_bytes()), {"data_types": {}})
 
 
 class TestStringifyKeys(unittest.TestCase):
