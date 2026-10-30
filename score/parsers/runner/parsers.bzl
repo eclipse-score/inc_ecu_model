@@ -43,7 +43,7 @@ def _load_and_merge_impl(ctx):
 load_and_merge = rule(
     implementation = _load_and_merge_impl,
     attrs = {
-        "out": attr.output(mandatory = True, doc = "Merged registry pickle output."),
+        "out": attr.output(mandatory = True, doc = "Final model pickle output."),
         "parsers": attr.label_list(
             allow_files = True,
             doc = "Targets each producing one pickle serialized by ModelRegistry.serialize().",

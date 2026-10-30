@@ -18,13 +18,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import pickle
 from dataclasses import fields, is_dataclass
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel
 
-from score.ecu_model.model import ModelRegistry
 from score.parsers.runner.load_and_merge import load_and_merge
 
 
@@ -63,7 +63,7 @@ def _stringify_keys(value: Any, active_object_ids: set[int] | None = None) -> An
 
 
 def main() -> None:
-    """Merge registry pickles and write a binary result plus optional text output."""
+    """Merge raw parser registries and write the final result as pickle and optional JSON."""
     argument_parser = argparse.ArgumentParser(description="Load and merge parser outputs")
     argument_parser.add_argument("--registry-pickle", action="append", default=[])
     argument_parser.add_argument("--output", required=True)
@@ -85,7 +85,7 @@ def main() -> None:
         text_output_path.parent.mkdir(parents=True, exist_ok=True)
 
     result = load_and_merge(arguments.registry_pickle)
-    output_path.write_bytes(ModelRegistry.serialize())
+    output_path.write_bytes(pickle.dumps(result, protocol=pickle.HIGHEST_PROTOCOL))
 
     if text_output_path is not None:
         text_output_path.write_text(
