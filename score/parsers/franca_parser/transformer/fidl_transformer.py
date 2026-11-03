@@ -301,6 +301,8 @@ class FIDLTransformer(FrancaFileTransformer):
             name=name,
             source_kind=DataTypeSource.FRANCA,
             extends=extends,
+            size=8,
+            signed=False,
             values=tuple(values),
         )
         self._record_datatype_references(enum)

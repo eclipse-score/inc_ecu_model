@@ -77,6 +77,7 @@ py_test(
     size = "small",
     srcs = ["enum_test.py"],
     deps = [
+        "//score/ecu_model",
         "//score/ecu_model/data_types",
         "@pypi//pydantic",
     ],

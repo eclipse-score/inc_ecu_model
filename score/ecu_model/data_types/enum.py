@@ -23,10 +23,10 @@ from score.ecu_model.data_types.common import (
     DataTypeSource,
     Identifier,
 )
-from score.ecu_model.model import ModelElement
+from score.ecu_model.model import ModelObject
 
 
-class EnumValue(ModelElement):
+class EnumValue(ModelObject):
     """A named enum literal with an optional numeric value."""
 
     name: Identifier = Field(
@@ -72,7 +72,7 @@ class EnumDataType(DataTypeBase):
         description="Whether enum storage is signed",
     )
     allow_value_aliases: bool = Field(
-        default=False,
+        default=True,
         description="Whether multiple enum literals may declare the same numeric value",
     )
     values: tuple[EnumValue, ...] = Field(

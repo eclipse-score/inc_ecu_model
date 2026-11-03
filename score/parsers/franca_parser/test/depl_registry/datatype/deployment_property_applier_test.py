@@ -26,6 +26,7 @@ from score.ecu_model.data_types.typedef import TypedefDataType
 from score.ecu_model.data_types.union import UnionDataType
 from score.parsers.franca_parser.deployment_property_applier import DeploymentPropertyApplier
 from score.parsers.franca_parser.model.fdepl.definition import DeploymentParameter
+from score.parsers.franca_parser.model.fdepl.fdepl_file import FDEPLFileModel
 from score.parsers.franca_parser.model.fdepl.specification import (
     DeploymentPropertyType,
     DeploymentPropertyTypeReference,
@@ -40,10 +41,12 @@ from score.parsers.franca_parser.model.fdepl.type_collection_deployment import (
     TypeCollectionDeployment,
     TypedefDeployment,
 )
+from score.parsers.franca_parser.model.fidl.type_collection import TypeCollection
 from score.parsers.franca_parser.parser import FrancaParser
 from score.parsers.franca_parser.transformer.file_graph_transformer import (
     FrancaFileGraphTransformer,
 )
+from score.parsers.franca_parser.transformer.resolver.fdepl_resolver import FDEPLResolver
 
 TEST_DATA_DIRECTORY = Path(__file__).parent / "test_data"
 
@@ -51,7 +54,19 @@ TEST_DATA_DIRECTORY = Path(__file__).parent / "test_data"
 class DeploymentPropertyApplierTest(unittest.TestCase):
     """Verify deployment properties applied from transformed FDEPL definitions."""
 
-    def test_apply_skips_unsupported_and_enumeration_deployments(self) -> None:
+    def test_enum_deployment_rejects_a_non_enum_target_before_resolution(self) -> None:
+        target = self._typedef_target()
+        reference = Identifier("Target")
+        deployment = EnumerationDeployment(deployed_type=reference)
+        collection = TypeCollection(name=Identifier("Types"), datatypes=[target])
+        owning_file = FDEPLFileModel(file_path=Path("enum.fdepl"), namespace=None)
+
+        with self.assertRaisesRegex(ValueError, "has kind.*expected"):
+            FDEPLResolver._resolve_datatype(deployment, collection, owning_file)
+
+        self.assertIs(deployment.deployed_type, reference)
+
+    def test_apply_skips_unsupported_deployments_and_applies_enumeration_properties(self) -> None:
         applier = DeploymentPropertyApplier()
         specification = self._specification_with_integer_property()
         target = self._typedef_target()
@@ -69,6 +84,100 @@ class DeploymentPropertyApplierTest(unittest.TestCase):
             specification,
         )
         self.assertEqual(enumeration.deployment_properties, {"property": 1})
+
+    def test_apply_enum_backing_type_updates_enum_storage(self) -> None:
+        backing_types = {
+            "UInt8": (8, False),
+            "UInt16": (16, False),
+            "UInt32": (32, False),
+            "UInt64": (64, False),
+            "Int8": (8, True),
+            "Int16": (16, True),
+            "Int32": (32, True),
+            "Int64": (64, True),
+        }
+        declaration = ParameterDeclaration(
+            host="enumerations",
+            name=Identifier("EnumBackingType"),
+            type_reference=DeploymentPropertyTypeReference(
+                DeploymentPropertyType.ENUM,
+                enumerators=[Identifier(name) for name in backing_types],
+            ),
+        )
+        specification = DeploymentSpecification(
+            name=QualifiedName((Identifier("specification"),)),
+            hosts={"enumerations": {"EnumBackingType": declaration}},
+        )
+        for backing_type, (size, signed) in backing_types.items():
+            with self.subTest(backing_type=backing_type):
+                enumeration = EnumDataType(
+                    name="Enumeration",
+                    source_kind=DataTypeSource.FRANCA,
+                    deployment_properties={"SomeIpEnumWidth": 1},
+                )
+
+                DeploymentPropertyApplier()._apply_deployment_element(
+                    EnumerationDeployment(
+                        deployed_type=enumeration,
+                        parameter_set=[
+                            DeploymentParameter(name=Identifier("EnumBackingType"), value=Identifier(backing_type))
+                        ],
+                    ),
+                    specification,
+                )
+
+                self.assertEqual((enumeration.size, enumeration.signed), (size, signed))
+                self.assertEqual(enumeration.deployment_properties["EnumBackingType"], backing_type)
+
+    def test_apply_enum_backing_type_defaults_to_uint8(self) -> None:
+        enumeration = EnumDataType(name="Enumeration", source_kind=DataTypeSource.FRANCA)
+        specification = DeploymentSpecification(name=QualifiedName((Identifier("specification"),)))
+
+        DeploymentPropertyApplier()._apply_deployment_element(
+            EnumerationDeployment(deployed_type=enumeration), specification
+        )
+
+        self.assertEqual(enumeration.size, 8)
+        self.assertFalse(enumeration.signed)
+
+    def test_apply_someip_enum_width_when_backing_type_is_not_deployed(self) -> None:
+        specification = DeploymentSpecification(name=QualifiedName((Identifier("specification"),)))
+        for width, expected_size in ((1, 8), (2, 16), (4, 32), (0, 64), (3, 64), (8, 64)):
+            with self.subTest(width=width):
+                enumeration = EnumDataType(
+                    name="Enumeration",
+                    source_kind=DataTypeSource.FRANCA,
+                    deployment_properties={"SomeIpEnumWidth": width},
+                )
+
+                DeploymentPropertyApplier()._apply_deployment_element(
+                    EnumerationDeployment(deployed_type=enumeration),
+                    specification,
+                )
+
+                self.assertEqual(enumeration.size, expected_size)
+                self.assertFalse(enumeration.signed)
+
+    def test_apply_enum_storage_rejects_invalid_property_values(self) -> None:
+        specification = DeploymentSpecification(name=QualifiedName((Identifier("specification"),)))
+        for property_name, value in (
+            ("EnumBackingType", "Float"),
+            ("EnumBackingType", 8),
+            ("SomeIpEnumWidth", "1"),
+            ("SomeIpEnumWidth", True),
+        ):
+            with self.subTest(property_name=property_name, value=value):
+                enumeration = EnumDataType(
+                    name="Enumeration",
+                    source_kind=DataTypeSource.FRANCA,
+                    deployment_properties={property_name: value},
+                )
+
+                with self.assertRaisesRegex(ValueError, "Unsupported " + property_name):
+                    DeploymentPropertyApplier()._apply_deployment_element(
+                        EnumerationDeployment(deployed_type=enumeration),
+                        specification,
+                    )
 
     def test_apply_warns_for_undeclared_property_and_rejects_unresolved_base_specification(self) -> None:
         applier = DeploymentPropertyApplier()

@@ -29,7 +29,14 @@
 namespace {{ namespace }} {
 {% endfor %}
 
+{% if is_alias %}
 using {{ header.declaration.name }} = {{ header.declaration.cpp_type }};
+{% elif is_enum %}
+enum class {{ header.declaration.name }} : {{ header.declaration.underlying_type }} {
+{% for value in header.declaration.values %}
+{{ "    " }}{{ value.name }} = {{ value.value }}{% if not loop.last %},{% endif %}{{ "\n" }}{% endfor %}
+};
+{% endif %}
 {% for namespace in header.namespaces | reverse %}
 }  // namespace {{ namespace }}
 {% endfor %}

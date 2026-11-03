@@ -41,13 +41,14 @@ classDiagram
     ModelElement <|-- DataTypeBase
     ModelElement <|-- DataTypeField
     DataTypeBase <|-- CompositeDataType
-    ModelElement <|-- EnumValue
+    ModelObject <|-- EnumValue
     DataTypeBase <|-- EnumDataType
     DataTypeBase <|-- ExternalDataType
     DataTypeBase <|-- MapDataType
     CompositeDataType <|-- StructDataType
     DataTypeBase <|-- TypedefDataType
     CompositeDataType <|-- UnionDataType
+    ModelObject <|-- ModelElement
     ModelRegistry <|-- ModelElement
     Activity --> Identifier : name
     Activity --> QualifiedName : namespace
@@ -717,7 +718,7 @@ Reject instantiation of this abstract base, before the element is added to the m
 
 ### `EnumValue`
 
-Inherits from [`ModelElement`](#modelelement).
+Inherits from [`ModelObject`](#modelobject).
 
 A named enum literal with an optional numeric value.
 
@@ -749,7 +750,7 @@ A declared enum data type with named literals.
 | `extends` | [`EnumDataType`](#enumdatatype) \| [`Identifier`](#identifier) \| [`QualifiedName`](#qualifiedname) \| None | `None` | Optional enum definition extended by this enum; may temporarily be an unresolved reference during model resolution |
 | `size` | `int` | `32` | Bit width used for enum storage |
 | `signed` | `bool` | `False` | Whether enum storage is signed |
-| `allow_value_aliases` | `bool` | `False` | Whether multiple enum literals may declare the same numeric value |
+| `allow_value_aliases` | `bool` | `True` | Whether multiple enum literals may declare the same numeric value |
 | `values` | tuple[[`EnumValue`](#enumvalue), ...] | `tuple()` | Named enum literals, not changeable after creation |
 
 **Validators**
@@ -959,31 +960,27 @@ A declared union data type whose fields are mutually exclusive,  e.g. a Franca u
 
 ### `ModelRegistry`
 
-Inherits from `BaseModel`.
-
 This class provides a registry for instances of ModelElement. All objects of type ModelElement are
 automatically tracked in the registry to ensure uniqueness and to make them resolvable by their identifier for the
 whole lifetime of the process.
 Future extensions, additional post-initialization, validation, etc. actions can be implemented here.
 
-#### `model_post_init(self, context: Any, /) -> None`
+#### `register(cls, element: 'ModelElement') -> None`
 
-_method_
+_classmethod_
 
-Post-initialization hook for the model. Overwrite of BaseModel.model_post_init() method.
-
-This method is called after the model is instantiated and all field validators are applied.
+Register a model element by its unique identifier.
 
 
 **Args:**
 
-- context: Additional context for post-initialization actions.
+- element: Model element to register.
 
 
 **Raises:**
 
-- TypeError: If the instance is neither the root ModelRegistry nor a ModelElement.
-- ValueError: If an instance with the same ID already exists in the registry.
+- TypeError: If the object is not a ModelElement.
+- ValueError: If an element with the same ID already exists in the registry.
 
 #### `serialize(cls) -> bytes`
 
@@ -1007,11 +1004,14 @@ Replace the registry with a previously serialized one and return the number of r
 
 - TypeError: If the payload does not contain a registry of model elements.
 
-### `ModelElement`
+### `ModelObject`
 
-Inherits from [`ModelRegistry`](#modelregistry).
+Inherits from `BaseModel`.
 
-Base class to be used by all objects tracked in ModelRegistry.elements.
+Base class providing common fields and behavior for model objects.
+
+Inheriting from this class does not automatically register instances in ModelRegistry.
+Inherit from ModelElement when automatic registration is required.
 
 **Fields**
 
@@ -1019,3 +1019,15 @@ Base class to be used by all objects tracked in ModelRegistry.elements.
 | --- | --- | --- | --- |
 | `id` | `UUID` | `uuid4()` | Unique identifier of the model element |
 | `description` | `str` | `''` | Human-readable description of the model element |
+
+### `ModelElement`
+
+Inherits from [`ModelObject`](#modelobject), [`ModelRegistry`](#modelregistry).
+
+A model object automatically tracked in ModelRegistry.
+
+#### `model_post_init(self, context: Any, /) -> None`
+
+_method_
+
+Register the element after its fields have been validated.

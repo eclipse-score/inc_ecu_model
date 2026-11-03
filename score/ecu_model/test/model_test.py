@@ -17,7 +17,30 @@ from uuid import UUID, uuid4
 
 from pydantic import ValidationError
 
-from score.ecu_model.model import ModelElement, ModelRegistry
+from score.ecu_model.model import ModelElement, ModelObject, ModelRegistry
+
+
+class TestModelObject(unittest.TestCase):
+    def test_identity_and_description_are_retained_without_registration(self) -> None:
+        identity = uuid4()
+        model_object = ModelObject(id=identity, description="Owned model object")
+
+        self.assertEqual(model_object.id, identity)
+        self.assertEqual(model_object.description, "Owned model object")
+        self.assertNotIn(identity, ModelRegistry.elements)
+        self.assertEqual(str(model_object), f"ModelObject(id={identity}, description=Owned model object)")
+
+    def test_assignment_is_validated_without_registration(self) -> None:
+        model_object = ModelObject()
+        self.assertIsInstance(model_object.id, UUID)
+        self.assertEqual(model_object.description, "")
+
+        model_object.description = "updated"
+
+        self.assertEqual(model_object.description, "updated")
+        with self.assertRaises(ValidationError):
+            model_object.id = "not-a-uuid"
+        self.assertNotIn(model_object.id, ModelRegistry.elements)
 
 
 class TestModelRegistry(unittest.TestCase):
@@ -28,6 +51,12 @@ class TestModelRegistry(unittest.TestCase):
     def test_root_instance_is_not_registered(self) -> None:
         root = ModelRegistry()
         self.assertNotIn(root, ModelRegistry.elements.values())
+
+    def test_registration_rejects_an_owned_model_object(self) -> None:
+        model_object = ModelObject()
+
+        self.assertRaises(TypeError, ModelRegistry.register, model_object)
+        self.assertNotIn(model_object.id, ModelRegistry.elements)
 
 
 class TestModelElement(unittest.TestCase):
@@ -85,6 +114,14 @@ class TestSerialization(unittest.TestCase):
             self.assertIsNot(restored, element)
             self.assertEqual(restored.description, element.description)
 
+    def test_model_element_retains_inherited_registry_operations(self) -> None:
+        element = ModelElement(description="registered model object")
+        blob = ModelElement.serialize()
+        ModelRegistry.elements.clear()
+
+        self.assertEqual(ModelElement.deserialize(blob), 1)
+        self.assertEqual(ModelRegistry.elements[element.id].description, element.description)
+
     def test_deserialize_detaches_pre_existing_instances(self) -> None:
         original = ModelElement(description="original")
         blob = ModelRegistry.serialize()
@@ -108,6 +145,14 @@ class TestSerialization(unittest.TestCase):
     def test_malformed_payload_is_rejected(self) -> None:
         with self.assertRaises(TypeError):
             ModelRegistry.deserialize(pickle.dumps({"not": "a registry"}))
+
+    def test_deserialize_rejects_an_owned_model_object_as_a_registry_entry(self) -> None:
+        model_object = ModelObject()
+        payload = pickle.dumps({model_object.id: model_object})
+
+        with self.assertRaises(TypeError):
+            ModelRegistry.deserialize(payload)
+        self.assertNotIn(model_object.id, ModelRegistry.elements)
 
 
 if __name__ == "__main__":

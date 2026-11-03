@@ -12,12 +12,65 @@
 # *******************************************************************************
 
 import unittest
+from uuid import UUID
 
 from pydantic import ValidationError
 
 from score.ecu_model.data_types.common import DataTypeKind, DataTypeSource
 from score.ecu_model.data_types.enum import EnumDataType, EnumValue
 from score.ecu_model.data_types.struct import StructDataType
+from score.ecu_model.model import ModelElement, ModelObject, ModelRegistry
+
+
+class TestEnumValueRegistry(unittest.TestCase):
+    def setUp(self) -> None:
+        self._saved_registry = dict(ModelRegistry.elements)
+        ModelRegistry.elements.clear()
+
+    def tearDown(self) -> None:
+        ModelRegistry.elements.clear()
+        ModelRegistry.elements.update(self._saved_registry)
+
+    def test_literal_keeps_identity_and_validation_without_registration(self) -> None:
+        literal = EnumValue(name="PARK", value=0, description="Parked gear")
+
+        self.assertIsInstance(literal, ModelObject)
+        self.assertNotIsInstance(literal, ModelElement)
+        self.assertIsInstance(literal.id, UUID)
+        self.assertEqual(literal.description, "Parked gear")
+        self.assertNotIn(literal.id, ModelRegistry.elements)
+        with self.assertRaises(ValidationError):
+            literal.value = True
+
+    def test_enum_is_registered_without_its_literal(self) -> None:
+        literal = EnumValue(name="PARK", value=0)
+        enumeration = EnumDataType(name="Gear", source_kind=DataTypeSource.FRANCA, values=(literal,))
+
+        self.assertEqual(ModelRegistry.elements, {enumeration.id: enumeration})
+        self.assertIs(enumeration.values[0], literal)
+
+    def test_registry_round_trip_preserves_owned_literal_without_registering_it(self) -> None:
+        literal = EnumValue(
+            name="PARK",
+            value=0,
+            description="Parked gear",
+            deployment_properties={"protobuf.deprecated": True},
+        )
+        enumeration = EnumDataType(name="Gear", source_kind=DataTypeSource.FRANCA, values=(literal,))
+        payload = ModelRegistry.serialize()
+        ModelRegistry.elements.clear()
+
+        self.assertEqual(ModelRegistry.deserialize(payload), 1)
+        restored_enum = ModelRegistry.elements[enumeration.id]
+        self.assertIsInstance(restored_enum, EnumDataType)
+        restored_literal = restored_enum.values[0]
+        self.assertIsNot(restored_literal, literal)
+        self.assertEqual(restored_literal.id, literal.id)
+        self.assertEqual(restored_literal.name, literal.name)
+        self.assertEqual(restored_literal.value, literal.value)
+        self.assertEqual(restored_literal.description, literal.description)
+        self.assertEqual(restored_literal.deployment_properties, literal.deployment_properties)
+        self.assertNotIn(restored_literal.id, ModelRegistry.elements)
 
 
 class TestEnumDataType(unittest.TestCase):
@@ -103,19 +156,19 @@ class TestEnumDataType(unittest.TestCase):
                 values=[self._value("PARK", 0), self._value("PARK", 1)],
             )
 
-    def test_rejects_duplicate_explicit_literal_values(self) -> None:
+    def test_rejects_duplicate_explicit_literal_values_when_aliases_are_disabled(self) -> None:
         with self.assertRaisesRegex(ValidationError, "explicit enum values must be unique"):
             EnumDataType(
                 name="Gear",
                 source_kind=DataTypeSource.FRANCA,
+                allow_value_aliases=False,
                 values=[self._value("PARK", 0), self._value("DRIVE", 0)],
             )
 
-    def test_allows_duplicate_literal_values_when_enabled(self) -> None:
+    def test_allows_duplicate_literal_values_by_default(self) -> None:
         data_type = EnumDataType(
             name="State",
             source_kind=DataTypeSource.FRANCA,
-            allow_value_aliases=True,
             values=[self._value("STATE_UNSPECIFIED", 0), self._value("STATE_UNKNOWN", 0)],
         )
 

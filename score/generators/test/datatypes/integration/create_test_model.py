@@ -11,19 +11,20 @@
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
 
-"""Produce a raw registry for the primitive/typedef build-time integration test."""
+"""Produce a raw datatype registry for primitive, typedef and enum integration tests."""
 
 import argparse
 from pathlib import Path
 
 from score.ecu_model.data_types.common import DataTypeSource
+from score.ecu_model.data_types.enum import EnumDataType, EnumValue
 from score.ecu_model.data_types.primitives import PrimitiveDataType
 from score.ecu_model.data_types.typedef import TypedefDataType
 from score.ecu_model.model import ModelRegistry
 
 
 def main() -> None:
-    """Write a datatype-only registry with primitive aliases and a typedef dependency chain."""
+    """Write primitive aliases, a typedef chain and enums with all supported storage types."""
     argument_parser = argparse.ArgumentParser(description=__doc__)
     argument_parser.add_argument("--output", type=Path, required=True)
     arguments = argument_parser.parse_args()
@@ -60,6 +61,24 @@ def main() -> None:
         source_kind=DataTypeSource.FRANCA,
         data_type=count,
     )
+    for size in (8, 16, 32, 64):
+        for signed in (False, True):
+            name = f"{'Int' if signed else 'UInt'}{size}Mode"
+            enumeration = EnumDataType(
+                name=name,
+                namespace="example.Types",
+                source_kind=DataTypeSource.FRANCA,
+                size=size,
+                signed=signed,
+                values=(EnumValue(name="Minimum", value=-1 if signed else 0), EnumValue(name="Maximum", value=1)),
+            )
+            if size == 8 and signed:
+                TypedefDataType(
+                    name="PublicMode",
+                    namespace="example.Types",
+                    source_kind=DataTypeSource.FRANCA,
+                    data_type=enumeration,
+                )
     arguments.output.write_bytes(ModelRegistry.serialize())
 
 

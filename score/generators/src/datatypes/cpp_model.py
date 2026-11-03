@@ -25,6 +25,23 @@ class CppAlias:
 
 
 @dataclass(frozen=True)
+class CppEnumerator:
+    """An enum literal's source name and resolved integer value."""
+
+    name: str
+    value: int
+
+
+@dataclass(frozen=True)
+class CppEnum:
+    """A scoped enum with an explicit underlying type and ordered literals."""
+
+    name: str
+    underlying_type: str
+    values: tuple[CppEnumerator, ...]
+
+
+@dataclass(frozen=True)
 class CppHeaderModel:
     """A completed declaration and its output-relative header metadata."""
 
@@ -32,4 +49,4 @@ class CppHeaderModel:
     guard: str
     namespaces: tuple[str, ...]
     includes: tuple[str, ...]
-    declaration: CppAlias
+    declaration: CppAlias | CppEnum
