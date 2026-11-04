@@ -17,6 +17,23 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
+class CppField:
+    """A struct member's source name and resolved C++ type expression."""
+
+    name: str
+    cpp_type: str
+    generated_type_alias: str | None = None
+
+
+@dataclass(frozen=True)
+class CppStruct:
+    """A struct declaration with members in source order."""
+
+    name: str
+    fields: tuple[CppField, ...]
+
+
+@dataclass(frozen=True)
 class CppAlias:
     """A named C++ type alias and its resolved C++ type expression."""
 
@@ -49,4 +66,4 @@ class CppHeaderModel:
     guard: str
     namespaces: tuple[str, ...]
     includes: tuple[str, ...]
-    declaration: CppAlias | CppEnum
+    declaration: CppStruct | CppAlias | CppEnum

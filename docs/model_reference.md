@@ -39,7 +39,7 @@ classDiagram
     ModelElement <|-- ServiceInterface
     DataTypeBase <|-- ArrayDataType
     ModelElement <|-- DataTypeBase
-    ModelElement <|-- DataTypeField
+    ModelObject <|-- DataTypeField
     DataTypeBase <|-- CompositeDataType
     ModelObject <|-- EnumValue
     DataTypeBase <|-- EnumDataType
@@ -667,9 +667,9 @@ Return the fully qualified name combining namespace and name.
 
 ### `DataTypeField`
 
-Inherits from [`ModelElement`](#modelelement).
+Inherits from [`ModelObject`](#modelobject).
 
-A named member of a composite data type, e.g. a struct.
+A named member owned by its composite data type, not independently registered.
 
 **Fields**
 

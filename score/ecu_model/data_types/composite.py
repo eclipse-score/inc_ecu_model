@@ -23,10 +23,10 @@ from score.ecu_model.data_types.common import (
     DataTypeSource,
     Identifier,
 )
-from score.ecu_model.model import ModelElement
+from score.ecu_model.model import ModelObject
 
 
-class DataTypeField(ModelElement):
+class DataTypeField(ModelObject):
     """A named member of a composite data type, e.g. a struct."""
 
     name: Identifier = Field(

@@ -42,6 +42,7 @@ py_library(
         "datatype_utils.py",
         "enum_type.py",
         "primitive_type.py",
+        "struct_type.py",
         "typedef_type.py",
     ],
     visibility = ["//score/generators:__subpackages__"],
