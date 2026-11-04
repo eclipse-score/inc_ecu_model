@@ -31,6 +31,8 @@ namespace {{ namespace }} {
 
 {% if is_alias %}
 using {{ header.declaration.name }} = {{ header.declaration.cpp_type }};
+{% elif is_variant %}
+using {{ header.declaration.name }} = std::variant<{{ header.declaration.alternatives | join(", ") }}>;
 {% elif is_enum %}
 enum class {{ header.declaration.name }} : {{ header.declaration.underlying_type }} {
 {% for value in header.declaration.values %}

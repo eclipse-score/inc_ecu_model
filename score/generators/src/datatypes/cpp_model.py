@@ -42,6 +42,14 @@ class CppAlias:
 
 
 @dataclass(frozen=True)
+class CppVariant:
+    """A named variant alias with alternatives in effective declaration order."""
+
+    name: str
+    alternatives: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class CppEnumerator:
     """An enum literal's source name and resolved integer value."""
 
@@ -66,4 +74,4 @@ class CppHeaderModel:
     guard: str
     namespaces: tuple[str, ...]
     includes: tuple[str, ...]
-    declaration: CppStruct | CppAlias | CppEnum
+    declaration: CppStruct | CppAlias | CppEnum | CppVariant

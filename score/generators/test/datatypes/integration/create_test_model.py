@@ -11,7 +11,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
 
-"""Produce a raw datatype registry for primitive, typedef, enum and struct integration tests."""
+"""Produce a raw datatype registry for generated C++ integration tests."""
 
 import argparse
 from pathlib import Path
@@ -22,11 +22,12 @@ from score.ecu_model.data_types.enum import EnumDataType, EnumValue
 from score.ecu_model.data_types.primitives import PrimitiveDataType
 from score.ecu_model.data_types.struct import StructDataType
 from score.ecu_model.data_types.typedef import TypedefDataType
+from score.ecu_model.data_types.union import UnionDataType
 from score.ecu_model.model import ModelRegistry
 
 
 def main() -> None:
-    """Write aliases, enums and inherited structs with shared named dependencies."""
+    """Write aliases, enums, inherited structs and unions with shared dependencies."""
     argument_parser = argparse.ArgumentParser(description=__doc__)
     argument_parser.add_argument("--output", type=Path, required=True)
     arguments = argument_parser.parse_args()
@@ -122,6 +123,68 @@ def main() -> None:
         namespace="example.Types",
         source_kind=DataTypeSource.FRANCA,
         extends=extended_state,
+    )
+    choice = UnionDataType(
+        name="Choice",
+        namespace="example.Types",
+        source_kind=DataTypeSource.FRANCA,
+        fields=[
+            DataTypeField(name="count", data_type=count),
+            DataTypeField(name="raw", data_type=aliases["UInt16"]),
+            DataTypeField(name="mode", data_type=enums["Int8Mode"]),
+            DataTypeField(name="state", data_type=state),
+            DataTypeField(name="text", data_type=PrimitiveDataType.STRING),
+        ],
+    )
+    TypedefDataType(
+        name="PublicChoice",
+        namespace="example.Types",
+        source_kind=DataTypeSource.FRANCA,
+        data_type=choice,
+    )
+    payload = UnionDataType(
+        name="Payload",
+        namespace="example.Shared",
+        source_kind=DataTypeSource.FRANCA,
+        fields=[
+            DataTypeField(name="flag", data_type=PrimitiveDataType.BOOL),
+            DataTypeField(name="choice", data_type=choice),
+        ],
+    )
+    extended_choice = UnionDataType(
+        name="ExtendedChoice",
+        namespace="example.Derived",
+        source_kind=DataTypeSource.FRANCA,
+        extends=choice,
+        fields=[DataTypeField(name="number", data_type=PrimitiveDataType.DOUBLE)],
+    )
+    current_choice = UnionDataType(
+        name="CurrentChoice",
+        namespace="example.Types",
+        source_kind=DataTypeSource.FRANCA,
+        extends=extended_choice,
+        fields=[DataTypeField(name="flag", data_type=PrimitiveDataType.BOOL)],
+    )
+    inherited_choice = UnionDataType(
+        name="InheritedChoice",
+        namespace="example.Shared",
+        source_kind=DataTypeSource.FRANCA,
+        extends=current_choice,
+    )
+    TypedefDataType(
+        name="PublicInheritedChoice",
+        namespace="example.Types",
+        source_kind=DataTypeSource.FRANCA,
+        data_type=inherited_choice,
+    )
+    StructDataType(
+        name="Packet",
+        namespace="example.Types",
+        source_kind=DataTypeSource.FRANCA,
+        fields=[
+            DataTypeField(name="payload", data_type=payload),
+            DataTypeField(name="inherited", data_type=inherited_choice),
+        ],
     )
     arguments.output.write_bytes(ModelRegistry.serialize())
 

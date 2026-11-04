@@ -23,6 +23,7 @@ from score.ecu_model.data_types.identifier import Identifier, QualifiedName
 from score.ecu_model.data_types.primitives import PrimitiveDataType
 from score.ecu_model.data_types.struct import StructDataType
 from score.ecu_model.data_types.typedef import TypedefDataType
+from score.ecu_model.data_types.union import UnionDataType
 from score.ecu_model.model import ModelElement
 from score.generators.src.datatypes.cpp_model import CppHeaderModel
 from score.generators.src.datatypes.cpp_type_registry import CppTypeInfo, CppTypeRegistry
@@ -30,6 +31,7 @@ from score.generators.src.datatypes.enum_type import build_enum_header
 from score.generators.src.datatypes.primitive_type import register_primitive
 from score.generators.src.datatypes.struct_type import build_struct_header
 from score.generators.src.datatypes.typedef_type import build_alias_header
+from score.generators.src.datatypes.union_type import build_union_header
 
 
 class _ProcessingState(Enum):
@@ -50,7 +52,7 @@ class DatatypeUtils:
         """Register supported datatypes in dependency order, rejecting unsupported input."""
         registry = CppTypeRegistry()
         states: dict[UUID, _ProcessingState] = {}
-        active_path: list[TypedefDataType | EnumDataType | StructDataType] = []
+        active_path: list[TypedefDataType | EnumDataType | StructDataType | UnionDataType] = []
 
         def process(datatype: ModelElement | PrimitiveDataType | Identifier | QualifiedName) -> CppTypeInfo:
             if isinstance(datatype, (Identifier, QualifiedName)):
@@ -60,7 +62,7 @@ class DatatypeUtils:
             if not isinstance(datatype, DataTypeBase):
                 raise TypeError(f"Expected a datatype, got {type(datatype).__name__}")
             # TODO: Add support for other datatype kinds in the future.
-            if not isinstance(datatype, (TypedefDataType, EnumDataType, StructDataType)):
+            if not isinstance(datatype, (TypedefDataType, EnumDataType, StructDataType, UnionDataType)):
                 name = datatype.fully_qualified_name if datatype.name is not None else "<anonymous>"
                 raise NotImplementedError(f"Unsupported datatype: {name} ({datatype.kind})")
 
@@ -84,12 +86,18 @@ class DatatypeUtils:
                     if datatype.extends is not None:
                         process(datatype.extends)
                     header = build_enum_header(datatype, registry)
-                else:
+                elif isinstance(datatype, StructDataType):
                     if datatype.extends is not None:
                         process(datatype.extends)
                     for member in datatype.fields:
                         process(member.data_type)
                     header = build_struct_header(datatype, registry)
+                else:
+                    if datatype.extends is not None:
+                        process(datatype.extends)
+                    for member in datatype.fields:
+                        process(member.data_type)
+                    header = build_union_header(datatype, registry)
                 on_header_ready(header)
                 states[identity] = _ProcessingState.COMPLETE
                 return registry.named_types[datatype.fully_qualified_name]

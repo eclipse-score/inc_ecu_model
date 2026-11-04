@@ -16,7 +16,7 @@
 from pathlib import Path
 
 from score.generators.src.common.template_renderer import TemplateRenderer
-from score.generators.src.datatypes.cpp_model import CppAlias, CppEnum, CppHeaderModel
+from score.generators.src.datatypes.cpp_model import CppAlias, CppEnum, CppHeaderModel, CppVariant
 
 
 class HeaderRenderer:
@@ -34,5 +34,6 @@ class HeaderRenderer:
                 "header": header,
                 "is_alias": isinstance(header.declaration, CppAlias),
                 "is_enum": isinstance(header.declaration, CppEnum),
+                "is_variant": isinstance(header.declaration, CppVariant),
             },
         )

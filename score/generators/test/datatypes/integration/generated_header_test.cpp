@@ -24,6 +24,9 @@
 #include "example/Types/Int64Mode.h"
 #include "example/Types/Int8.h"
 #include "example/Types/Int8Mode.h"
+#include "example/Types/Packet.h"
+#include "example/Types/PublicChoice.h"
+#include "example/Types/PublicInheritedChoice.h"
 #include "example/Types/PublicCount.h"
 #include "example/Types/PublicMode.h"
 #include "example/Types/PublicState.h"
@@ -77,6 +80,20 @@ static_assert(std::is_same_v<decltype(example::Types::CurrentState::sequence), s
 static_assert(std::is_same_v<decltype(example::Types::CurrentState::version), example::Shared::Version>);
 static_assert(std::is_same_v<example::Types::CurrentState::count_generated_type, example::Types::Count>);
 static_assert(std::is_same_v<example::Types::CurrentState::mode_generated_type, example::Types::Int8Mode>);
+static_assert(std::is_same_v<example::Types::PublicChoice, example::Types::Choice>);
+static_assert(std::variant_size_v<example::Types::Choice> == 5);
+static_assert(std::is_same_v<std::variant_alternative_t<0, example::Types::Choice>, example::Types::Count>);
+static_assert(std::is_same_v<std::variant_alternative_t<1, example::Types::Choice>, example::Types::Count>);
+static_assert(std::is_same_v<std::variant_alternative_t<2, example::Types::Choice>, example::Types::Int8Mode>);
+static_assert(std::is_same_v<std::variant_alternative_t<3, example::Types::Choice>, example::Types::State>);
+static_assert(std::is_same_v<std::variant_alternative_t<4, example::Types::Choice>, std::string>);
+static_assert(std::is_same_v<std::variant_alternative_t<0, example::Shared::Payload>, bool>);
+static_assert(std::is_same_v<std::variant_alternative_t<1, example::Shared::Payload>, example::Types::Choice>);
+static_assert(std::is_same_v<example::Types::Packet::payload_generated_type, example::Shared::Payload>);
+static_assert(std::is_same_v<example::Types::PublicInheritedChoice,
+                             std::variant<bool, double, example::Types::Count, example::Types::Count,
+                                          example::Types::Int8Mode, example::Types::State, std::string>>);
+static_assert(std::is_same_v<example::Types::Packet::inherited_generated_type, example::Types::PublicInheritedChoice>);
 
 int main()
 {
@@ -88,12 +105,48 @@ int main()
     const auto wide_mode = example::Types::UInt16Mode::Maximum;
     const example::Types::PublicState state{enabled, text, count, mode, example::Shared::Version{1, 2}};
     const example::Types::CurrentState current{9, enabled, text, count, mode, example::Shared::Version{3, 4}};
+    example::Types::PublicChoice choice;
+    if (choice.index() != 0 || std::get<0>(choice) != 0)
+    {
+        return 1;
+    }
+    choice.emplace<1>(count);
+    if (choice.index() != 1 || std::get<1>(choice) != count)
+    {
+        return 1;
+    }
+    choice = mode;
+    if (!std::holds_alternative<example::Types::Int8Mode>(choice) ||
+        std::get<example::Types::Int8Mode>(choice) != mode)
+    {
+        return 1;
+    }
+    choice = state;
+    if (std::get<example::Types::State>(choice).version.minor != 2)
+    {
+        return 1;
+    }
+    choice = text;
+    example::Types::PublicInheritedChoice inherited;
+    if (inherited.index() != 0 || std::get<0>(inherited))
+    {
+        return 1;
+    }
+    inherited.emplace<3>(count);
+    if (inherited.index() != 3 || std::get<3>(inherited) != count)
+    {
+        return 1;
+    }
+    inherited = state;
+    const example::Types::Packet packet{example::Shared::Payload{choice}, inherited};
     return enabled && count == 7 && text == "ready" && static_cast<std::int8_t>(mode) == 1 &&
                    static_cast<std::int8_t>(signed_mode) == -1 && static_cast<std::uint16_t>(wide_mode) == 1 &&
                    state.enabled && state.text == "ready" && state.count == 7 && state.mode == mode &&
                    state.version.major == 1 && state.version.minor == 2 && current.sequence == 9 &&
                    current.enabled && current.text == "ready" && current.count == 7 && current.mode == mode &&
-                   current.version.major == 3 && current.version.minor == 4
+                   current.version.major == 3 && current.version.minor == 4 &&
+                   std::get<std::string>(std::get<example::Types::Choice>(packet.payload)) == text &&
+                   std::get<example::Types::State>(packet.inherited).version.minor == 2
                ? 0
                : 1;
 }

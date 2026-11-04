@@ -44,6 +44,7 @@ py_library(
         "primitive_type.py",
         "struct_type.py",
         "typedef_type.py",
+        "union_type.py",
     ],
     visibility = ["//score/generators:__subpackages__"],
     deps = [
