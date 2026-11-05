@@ -18,7 +18,7 @@ from pydantic import Field, field_validator, model_validator
 
 from score.ecu_model.data_types.identifier import Identifier, QualifiedName
 from score.ecu_model.data_types.primitives import PrimitiveDataType
-from score.ecu_model.model import ModelElement
+from score.ecu_model.model import CustomModelElement, ModelElement
 
 
 class DataTypeKind(str, Enum):
@@ -133,8 +133,18 @@ class DataTypeBase(ModelElement):
         return QualifiedName((*self.namespace.names, self.name)).format(self.source_kind.separator)
 
 
-# Use site of a data type: either a builtin primitive or a direct reference to a declared definition.
-DataType = PrimitiveDataType | DataTypeBase
+class CustomDataType(CustomModelElement):
+    """Base class for domain-specific or proprietary data types injected via plugins or downstream repositories."""
+
+    def model_post_init(self, context: Any, /) -> None:
+        """Reject direct instantiation of the abstract base type."""
+        if type(self) is CustomDataType:
+            raise TypeError("CustomDataType is abstract, instantiate a concrete custom data type")
+        super().model_post_init(context)
+
+
+# Use site of a data type: either a builtin primitive, a declared definition, or a custom plugin data type.
+DataType = PrimitiveDataType | DataTypeBase | CustomDataType
 
 # Name of a data type declaration that is not resolvable yet, e.g. while a parser is still reading its sources.
 DataTypeReference = Identifier | QualifiedName

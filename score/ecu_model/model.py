@@ -105,3 +105,18 @@ class ModelElement(ModelRegistry):
 
     def __str__(self) -> str:
         return f"{self.__class__.__name__}(id={self.id}, description={self.description})"
+
+
+class CustomModelElement(ModelElement):
+    """
+    Abstract base class for domain-specific, proprietary, or OEM extensions injected via plugins.
+
+    Subclasses inherit UUID tracking and registration within ModelRegistry.
+    Direct instantiation of CustomModelElement is rejected.
+    """
+
+    def model_post_init(self, context: Any, /) -> None:
+        """Reject direct instantiation of the abstract CustomModelElement."""
+        if type(self) is CustomModelElement:
+            raise TypeError("CustomModelElement is abstract, instantiate a concrete custom model element")
+        super().model_post_init(context)
