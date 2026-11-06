@@ -76,25 +76,29 @@ classDiagram
     MessageChannel --> QualifiedName : namespace, data_type
     MessageChannel --> DataTypeBase : data_type
     MessageChannel --> PrimitiveDataType : data_type
-    Broadcast --> Identifier : name
+    Broadcast --> SelectableIdentifier : name
     Broadcast --> DataTypeField : outputs
     Attribute --> Identifier : name, data_type
     Attribute --> DataTypeBase : data_type
     Attribute --> PrimitiveDataType : data_type
     Attribute --> QualifiedName : data_type
-    Method --> Identifier : name, error_return_codes
+    Method --> SelectableIdentifier : name
     Method --> DataTypeField : inputs, outputs
     Method --> EnumDataType : error_return_codes
+    Method --> Identifier : error_return_codes
     Method --> QualifiedName : error_return_codes
-    InterfaceDefinition --> Identifier : name, broadcasts, attributes, methods
+    InterfaceDefinition --> Identifier : name, attributes
     InterfaceDefinition --> QualifiedName : namespace
     InterfaceDefinition --> Version : version
     InterfaceDefinition --> Broadcast : broadcasts
+    InterfaceDefinition --> SelectableIdentifier : broadcasts, methods
     InterfaceDefinition --> Attribute : attributes
     InterfaceDefinition --> Method : methods
-    ServiceInterface --> Identifier : name, broadcast_deployment_properties, attribute_deployment_properties, method_deployment_properties
+    InterfaceDefinition --> DataTypeBase : datatypes
+    ServiceInterface --> Identifier : name, attribute_deployment_properties
     ServiceInterface --> QualifiedName : namespace
     ServiceInterface --> InterfaceDefinition : design_element
+    ServiceInterface --> SelectableIdentifier : broadcast_deployment_properties, method_deployment_properties
     ArrayDataType --> DataTypeBase : data_type
     ArrayDataType --> Identifier : data_type
     ArrayDataType --> PrimitiveDataType : data_type
@@ -433,8 +437,9 @@ Named service broadcast / event carrying zero or more output data types.
 
 | Field | Type | Default | Description |
 | --- | --- | --- | --- |
-| `name` | [`Identifier`](#identifier) | _required_ |  |
+| `name` | [`SelectableIdentifier`](#selectableidentifier) | _required_ |  |
 | `outputs` | list[[`DataTypeField`](#datatypefield)] | `list()` |  |
+| `selective` | `bool` | `False` | Indicates if the broadcast targets a subset of clients |
 
 ### `Attribute`
 
@@ -462,10 +467,11 @@ Named service method with input, output, and error definitions.
 
 | Field | Type | Default | Description |
 | --- | --- | --- | --- |
-| `name` | [`Identifier`](#identifier) | _required_ |  |
+| `name` | [`SelectableIdentifier`](#selectableidentifier) | _required_ |  |
 | `inputs` | list[[`DataTypeField`](#datatypefield)] | `list()` | Specifies the input data types of the method |
 | `outputs` | list[[`DataTypeField`](#datatypefield)] | `list()` | Specifies the output data types of the method |
 | `error_return_codes` | [`EnumDataType`](#enumdatatype) \| [`Identifier`](#identifier) \| [`QualifiedName`](#qualifiedname) \| None | `None` | Specifies the error return codes of the method |
+| `error_description` | `str` | `''` | Human-readable description of the method's errors |
 | `fire_and_forget` | `bool` | `False` | Indicates if the method requires acknowledgment on bus level |
 
 ### `InterfaceDefinition`
@@ -481,9 +487,10 @@ Reusable design-time declaration of an interface.
 | `name` | [`Identifier`](#identifier) | _required_ |  |
 | `namespace` | [`QualifiedName`](#qualifiedname) | `QualifiedName()` |  |
 | `version` | [`Version`](#version) | _required_ |  |
-| `broadcasts` | dict[[`Identifier`](#identifier), [`Broadcast`](#broadcast)] | `dict()` |  |
+| `broadcasts` | dict[[`SelectableIdentifier`](#selectableidentifier), [`Broadcast`](#broadcast)] | `dict()` |  |
 | `attributes` | dict[[`Identifier`](#identifier), [`Attribute`](#attribute)] | `dict()` |  |
-| `methods` | dict[[`Identifier`](#identifier), [`Method`](#method)] | `dict()` |  |
+| `methods` | dict[[`SelectableIdentifier`](#selectableidentifier), [`Method`](#method)] | `dict()` |  |
+| `datatypes` | list[[`DataTypeBase`](#datatypebase)] | `list()` |  |
 
 **Validators**
 
@@ -514,9 +521,9 @@ Concrete deployment of an InterfaceDefinition.
 | `service_id` | `int \| None` | `None` |  |
 | `deployment_properties` | `dict[str, object]` | `dict()` |  |
 | `interface_deployment_properties` | `dict[str, object]` | `dict()` |  |
-| `broadcast_deployment_properties` | dict[[`Identifier`](#identifier), dict[str, object]] | `dict()` |  |
+| `broadcast_deployment_properties` | dict[[`SelectableIdentifier`](#selectableidentifier), dict[str, object]] | `dict()` |  |
 | `attribute_deployment_properties` | dict[[`Identifier`](#identifier), dict[str, object]] | `dict()` |  |
-| `method_deployment_properties` | dict[[`Identifier`](#identifier), dict[str, object]] | `dict()` |  |
+| `method_deployment_properties` | dict[[`SelectableIdentifier`](#selectableidentifier), dict[str, object]] | `dict()` |  |
 
 **Validators**
 
@@ -794,6 +801,28 @@ A single identifier, syntactically independent of the source IDL that declared i
 | Validator | Kind | Applies to | Description |
 | --- | --- | --- | --- |
 | `_validate_root_is_an_identifier` | field, after | `root` | Validate the identifier independently of any source IDL. |
+
+#### `as_str`
+
+_property_
+
+### `SelectableIdentifier`
+
+Inherits from `RootModel[str]`.
+
+An identifier with an optional colon-separated identifier suffix.
+
+**Fields**
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `root` | `str` | _required_ | Identifier text with an optional suffix, e.g. query or query:first |
+
+**Validators**
+
+| Validator | Kind | Applies to | Description |
+| --- | --- | --- | --- |
+| `_validate_root_is_selectable` | field, after | `root` | Validates `root`. |
 
 #### `as_str`
 

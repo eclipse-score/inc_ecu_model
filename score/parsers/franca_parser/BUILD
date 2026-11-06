@@ -15,6 +15,15 @@ load("@rules_python//python:defs.bzl", "py_binary", "py_library")
 
 package(default_visibility = ["//visibility:public"])
 
+filegroup(
+    name = "fidl_grammar_files",
+    srcs = [
+        "grammar/franca_com.lark",
+        "grammar/franca_fidl.lark",
+    ],
+    visibility = ["//score/parsers/franca_parser:__subpackages__"],
+)
+
 py_library(
     name = "deployment_property_applier",
     srcs = [

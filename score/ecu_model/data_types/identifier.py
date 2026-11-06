@@ -47,6 +47,29 @@ class Identifier(RootModel[str]):
         return self.as_str
 
 
+class SelectableIdentifier(RootModel[str]):
+    """An identifier with an optional colon-separated identifier suffix."""
+
+    model_config = ConfigDict(frozen=True)
+
+    root: str = Field(description="Identifier text with an optional suffix, e.g. query or query:first")
+
+    @field_validator("root")
+    @classmethod
+    def _validate_root_is_selectable(cls, value: str) -> str:
+        parts = value.split(":")
+        if len(parts) > 2 or any(_IDENTIFIER_PATTERN.fullmatch(part) is None for part in parts):
+            raise ValueError(f"Invalid selectable identifier '{value}': expected identifier or identifier:identifier")
+        return value
+
+    @property
+    def as_str(self) -> str:
+        return self.root
+
+    def __str__(self) -> str:
+        return self.as_str
+
+
 class QualifiedName(RootModel[tuple[Identifier, ...]]):
     """An ordered sequence of identifier segments, syntactically independent of the source IDL that declared it."""
 

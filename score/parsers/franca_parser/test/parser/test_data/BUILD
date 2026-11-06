@@ -11,6 +11,15 @@
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
 
+exports_files(
+    [
+        "registry_integration/common.fidl",
+        "registry_integration/events.fidl",
+        "registry_integration/service.fidl",
+    ],
+    visibility = ["//score/parsers/franca_parser/test/parser:__pkg__"],
+)
+
 filegroup(
     name = "fidl_files",
     srcs = glob(["*.fidl"]),

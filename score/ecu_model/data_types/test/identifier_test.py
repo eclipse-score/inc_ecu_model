@@ -15,7 +15,7 @@ import unittest
 
 from pydantic import ValidationError
 
-from score.ecu_model.data_types.identifier import Identifier, QualifiedName
+from score.ecu_model.data_types.identifier import Identifier, QualifiedName, SelectableIdentifier
 
 
 class TestIdentifier(unittest.TestCase):
@@ -33,6 +33,43 @@ class TestIdentifier(unittest.TestCase):
     def test_is_hashable_and_comparable_by_value(self) -> None:
         self.assertEqual(Identifier("Position"), Identifier("Position"))
         self.assertEqual(len({Identifier("Position"), Identifier("Position")}), 1)
+
+
+class TestSelectableIdentifier(unittest.TestCase):
+    def test_accepts_plain_and_colon_separated_identifiers(self) -> None:
+        for value in ("query", "query:first", "_query2:_first3"):
+            with self.subTest(value=value):
+                identifier = SelectableIdentifier(value)
+                self.assertEqual(identifier.as_str, value)
+                self.assertEqual(str(identifier), value)
+
+    def test_rejects_malformed_identifiers(self) -> None:
+        for value in (
+            "",
+            ":first",
+            "query:",
+            "query::first",
+            "query:a:b",
+            "query:1",
+            "1query",
+            "with-dash",
+            "a.b",
+            "a:b\n",
+        ):
+            with self.subTest(value=value), self.assertRaises(ValidationError):
+                SelectableIdentifier(value)
+
+    def test_is_independent_of_identifier(self) -> None:
+        self.assertFalse(issubclass(SelectableIdentifier, Identifier))
+        self.assertNotEqual(SelectableIdentifier("query"), Identifier("query"))
+        with self.assertRaises(ValidationError):
+            Identifier("query:first")
+
+    def test_is_frozen_hashable_and_comparable_by_value(self) -> None:
+        identifier = SelectableIdentifier("query:first")
+        self.assertEqual({identifier: "value"}[SelectableIdentifier("query:first")], "value")
+        with self.assertRaises(ValidationError):
+            identifier.root = "changed"
 
 
 class TestQualifiedName(unittest.TestCase):

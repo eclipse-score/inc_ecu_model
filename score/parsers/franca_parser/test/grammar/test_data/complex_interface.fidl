@@ -1,0 +1,32 @@
+package example
+
+/*
+**Additional grammar coverage**
+
+This fixture complements `complete_interface.fidl` with initializer forms and expression syntax not covered there. It is
+parsed without resolving type names or transforming the declarations into models.
+*/
+
+interface Complex {
+    // Bracket initializer with comma-separated values.
+    const UInt32[] values = [1, 2, 3]
+
+    // Bracket initializer with key-value entries, using `=>`.
+    const Lookup mapping = [1 => 2]
+
+    // Compound initializer assigning a value to a named field.
+    const Payload payload = { value: 1 }
+
+    // Covers an Integer interval, the built-in `undefined` type, and an unresolved named type reference (`opaque`).
+    method inspect { in { Integer(minInt,maxInt) count undefined opaque } }
+
+    // The guard adds nested field access, logical AND, and unary negation.
+    contract {
+        PSM {
+            initial Idle
+            state Idle {
+                on call inspect [payload->value == 1 && !false] -> Idle
+            }
+        }
+    }
+}

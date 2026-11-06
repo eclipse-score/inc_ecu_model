@@ -1,0 +1,32 @@
+package integration.service
+
+import "common.fidl"
+import "events.fidl"
+
+typeCollection ServiceTypes {
+    struct Request { integration.common.RequestId id integration.common.CommonTypes.Payload payload }
+    struct Envelope { Request request integration.events.EventTypes.Event event }
+}
+
+<** @description: Integration service **>
+interface Catalog {
+    version { major 2 minor 3 }
+    typedef LocalLabel is integration.common.CommonTypes.Label
+    enumeration Errors { NOT_FOUND INVALID = 0x20 }
+    struct Result { ServiceTypes.Envelope envelope LocalLabel label }
+    array Results of Result[0,8]
+
+    method query:byId {
+        in { ServiceTypes.Request request }
+        out { Results results integration.common.CommonTypes.PayloadByLabel index }
+        error Errors
+    }
+    method query:byLabel {
+        in { LocalLabel label }
+        out { integration.common.CommonTypes.Payloads payloads }
+    }
+    method notify fireAndForget { in { integration.common.RequestId id } }
+    broadcast changed selective { out { integration.events.EventTypes.Event event } }
+    attribute Result latest readonly
+    attribute integration.common.CommonTypes.Payload[0,4] cached noRead noSubscriptions
+}

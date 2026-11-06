@@ -16,18 +16,23 @@ from __future__ import annotations
 from pydantic import Field, field_validator, model_validator
 
 from score.ecu_model.common.version import Version
-from score.ecu_model.data_types.common import DataTypeOrReference, DataTypeReference
+from score.ecu_model.data_types.common import DataTypeBase, DataTypeOrReference, DataTypeReference
 from score.ecu_model.data_types.composite import DataTypeField
 from score.ecu_model.data_types.enum import EnumDataType
-from score.ecu_model.data_types.identifier import Identifier, QualifiedName
+from score.ecu_model.data_types.identifier import Identifier, QualifiedName, SelectableIdentifier
 from score.ecu_model.model import ModelElement
+
+_DeploymentPropertyMap = (
+    dict[str, object] | dict[Identifier, dict[str, object]] | dict[SelectableIdentifier, dict[str, object]]
+)
 
 
 class Broadcast(ModelElement):
     """Named service broadcast / event carrying zero or more output data types."""
 
-    name: Identifier
+    name: SelectableIdentifier
     outputs: list[DataTypeField] = Field(default_factory=list)
+    selective: bool = Field(default=False, description="Indicates if the broadcast targets a subset of clients")
 
 
 class Attribute(ModelElement):
@@ -43,7 +48,7 @@ class Attribute(ModelElement):
 class Method(ModelElement):
     """Named service method with input, output, and error definitions."""
 
-    name: Identifier
+    name: SelectableIdentifier
     inputs: list[DataTypeField] = Field(
         default_factory=list, description="Specifies the input data types of the method"
     )
@@ -53,6 +58,7 @@ class Method(ModelElement):
     error_return_codes: EnumDataType | DataTypeReference | None = Field(
         default=None, description="Specifies the error return codes of the method"
     )
+    error_description: str = Field(default="", description="Human-readable description of the method's errors")
     fire_and_forget: bool = Field(
         default=False, description="Indicates if the method requires acknowledgment on bus level"
     )
@@ -64,15 +70,17 @@ class InterfaceDefinition(ModelElement):
     name: Identifier
     namespace: QualifiedName = Field(default_factory=QualifiedName)
     version: Version
-    broadcasts: dict[Identifier, Broadcast] = Field(default_factory=dict)
+    broadcasts: dict[SelectableIdentifier, Broadcast] = Field(default_factory=dict)
     attributes: dict[Identifier, Attribute] = Field(default_factory=dict)
-    methods: dict[Identifier, Method] = Field(default_factory=dict)
+    methods: dict[SelectableIdentifier, Method] = Field(default_factory=dict)
+    datatypes: list[DataTypeBase] = Field(default_factory=list)
 
     @model_validator(mode="before")
     @classmethod
     def _coerce_namespace(cls, data: object) -> object:
         """
-        Allow for specifying the namespace as a simple dot-separated string instead of a QualifiedName object during construction.
+        Allow for specifying the namespace as a simple dot-separated string instead of a QualifiedName object during
+        construction.
         """
         if isinstance(data, dict) and isinstance(data.get("namespace"), str):
             data = dict(data)
@@ -87,7 +95,7 @@ class InterfaceDefinition(ModelElement):
             (self.attributes, "attribute"),
             (self.methods, "method"),
         ):
-            if any(str(key) != str(member.name) for key, member in members.items()):
+            if any(key != member.name for key, member in members.items()):
                 raise ValueError(f"interface {kind} keys must match declared {kind} names")
         return self
 
@@ -106,15 +114,16 @@ class ServiceInterface(ModelElement):
     service_id: int | None = Field(default=None, ge=0, strict=True)
     deployment_properties: dict[str, object] = Field(default_factory=dict)
     interface_deployment_properties: dict[str, object] = Field(default_factory=dict)
-    broadcast_deployment_properties: dict[Identifier, dict[str, object]] = Field(default_factory=dict)
+    broadcast_deployment_properties: dict[SelectableIdentifier, dict[str, object]] = Field(default_factory=dict)
     attribute_deployment_properties: dict[Identifier, dict[str, object]] = Field(default_factory=dict)
-    method_deployment_properties: dict[Identifier, dict[str, object]] = Field(default_factory=dict)
+    method_deployment_properties: dict[SelectableIdentifier, dict[str, object]] = Field(default_factory=dict)
 
     @model_validator(mode="before")
     @classmethod
     def _coerce_namespace(cls, data: object) -> object:
         """
-        Allow for specifying the namespace as a simple dot-separated string instead of a QualifiedName object during construction.
+        Allow for specifying the namespace as a simple dot-separated string instead of a QualifiedName object during
+        construction.
         """
         if isinstance(data, dict) and isinstance(data.get("namespace"), str):
             data = dict(data)
@@ -129,9 +138,7 @@ class ServiceInterface(ModelElement):
         "method_deployment_properties",
     )
     @classmethod
-    def _validate_property_names(
-        cls, value: dict[str, object] | dict[Identifier, dict[str, object]]
-    ) -> dict[str, object] | dict[Identifier, dict[str, object]]:
+    def _validate_property_names(cls, value: _DeploymentPropertyMap) -> _DeploymentPropertyMap:
         if isinstance(value, dict):
             for member_properties in value.values():
                 if isinstance(member_properties, dict) and any(not key.strip() for key in member_properties):
@@ -151,8 +158,8 @@ class ServiceInterface(ModelElement):
             (self.attribute_deployment_properties, self.design_element.attributes, "attribute"),
             (self.method_deployment_properties, self.design_element.methods, "method"),
         ):
-            keys = {str(name) for name in member_properties}
-            names = {str(name) for name in members}
+            keys = set(member_properties)
+            names = set(members)
             if any(name not in names for name in keys):
                 raise ValueError(f"interface {kind} deployment properties must reference declared {kind}s")
             if any(name not in keys for name in names):
