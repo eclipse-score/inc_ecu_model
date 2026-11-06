@@ -16,6 +16,7 @@
 import argparse
 from pathlib import Path
 
+from score.ecu_model.data_types.array import ArrayDataType
 from score.ecu_model.data_types.common import DataTypeSource
 from score.ecu_model.data_types.composite import DataTypeField
 from score.ecu_model.data_types.enum import EnumDataType, EnumValue
@@ -27,7 +28,7 @@ from score.ecu_model.model import ModelRegistry
 
 
 def main() -> None:
-    """Write aliases, enums, inherited structs and unions with shared dependencies."""
+    """Write aliases, enums, arrays, inherited structs and unions with shared dependencies."""
     argument_parser = argparse.ArgumentParser(description=__doc__)
     argument_parser.add_argument("--output", type=Path, required=True)
     arguments = argument_parser.parse_args()
@@ -184,6 +185,88 @@ def main() -> None:
         fields=[
             DataTypeField(name="payload", data_type=payload),
             DataTypeField(name="inherited", data_type=inherited_choice),
+        ],
+    )
+    row = ArrayDataType(
+        name="Row",
+        namespace="example.Shared",
+        source_kind=DataTypeSource.FRANCA,
+        data_type=PrimitiveDataType.UINT16,
+        deployment_properties={"SomeIpArrayMinLength": 7, "SomeIpArrayMaxLength": 7},
+    )
+    TypedefDataType(
+        name="PublicRow",
+        namespace="example.Types",
+        source_kind=DataTypeSource.FRANCA,
+        data_type=row,
+    )
+    samples = ArrayDataType(
+        name="Samples",
+        namespace="example.Types",
+        source_kind=DataTypeSource.FRANCA,
+        data_type=PrimitiveDataType.UINT16,
+        deployment_properties={"SomeIpArrayMinLength": 0, "SomeIpArrayMaxLength": 7},
+    )
+    ArrayDataType(
+        name="ZeroBounds",
+        namespace="example.Types",
+        source_kind=DataTypeSource.FRANCA,
+        data_type=PrimitiveDataType.BOOL,
+        dimension_min=0,
+        dimension_max=0,
+    )
+    states = ArrayDataType(
+        name="States",
+        namespace="example.Types",
+        source_kind=DataTypeSource.FRANCA,
+        data_type=state,
+        dimension_min=3,
+        dimension_max=3,
+    )
+    inline = ArrayDataType(
+        is_inline=True,
+        source_kind=DataTypeSource.FRANCA,
+        data_type=PrimitiveDataType.UINT16,
+    )
+    rows = ArrayDataType(is_inline=True, source_kind=DataTypeSource.FRANCA, data_type=row)
+    StructDataType(
+        name="Grid",
+        namespace="example.Types",
+        source_kind=DataTypeSource.FRANCA,
+        fields=[
+            DataTypeField(
+                name="rows",
+                data_type=rows,
+                deployment_properties={"SomeIpArrayMinLength": 5, "SomeIpArrayMaxLength": 5},
+            ),
+            DataTypeField(
+                name="row", data_type=row, deployment_properties={"SomeIpArrayMinLength": 2, "SomeIpArrayMaxLength": 2}
+            ),
+            DataTypeField(name="samples", data_type=samples),
+            DataTypeField(
+                name="fixed",
+                data_type=inline,
+                deployment_properties={"SomeIpArrayMinLength": 3, "SomeIpArrayMaxLength": 3},
+            ),
+        ],
+    )
+    UnionDataType(
+        name="ArrayChoice",
+        namespace="example.Types",
+        source_kind=DataTypeSource.FRANCA,
+        fields=[
+            DataTypeField(name="named", data_type=samples),
+            DataTypeField(
+                name="dynamic",
+                data_type=inline,
+                deployment_properties={"SomeIpArrayMinLength": 3, "SomeIpArrayMaxLength": 9},
+            ),
+            DataTypeField(
+                name="fixed",
+                data_type=inline,
+                deployment_properties={"SomeIpArrayMinLength": 3, "SomeIpArrayMaxLength": 3},
+            ),
+            DataTypeField(name="states", data_type=states),
         ],
     )
     arguments.output.write_bytes(ModelRegistry.serialize())

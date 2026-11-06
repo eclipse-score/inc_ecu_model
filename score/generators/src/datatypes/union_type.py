@@ -15,9 +15,11 @@
 
 from typing import cast
 
+from score.ecu_model.data_types.array import ArrayDataType
 from score.ecu_model.data_types.primitives import PrimitiveDataType
 from score.ecu_model.data_types.union import UnionDataType
 from score.generators.src.common.common_utils import generate_header_file_guard
+from score.generators.src.datatypes.array_type import get_array_type_info
 from score.generators.src.datatypes.cpp_model import CppHeaderModel, CppVariant
 from score.generators.src.datatypes.cpp_type_registry import CppTypeRegistry
 
@@ -35,6 +37,13 @@ def build_union_header(datatype: UnionDataType, registry: CppTypeRegistry) -> Cp
     for member in datatype.fields:
         if isinstance(member.data_type, PrimitiveDataType):
             member_type = registry.primitive_types[member.data_type]
+        elif isinstance(member.data_type, ArrayDataType):
+            member_type = get_array_type_info(
+                member.data_type,
+                registry,
+                member.deployment_properties,
+                f"{datatype.fully_qualified_name}.{member.name.as_str}",
+            )
         else:
             member_type = registry.named_types[member.data_type.fully_qualified_name]
         alternatives.append(member_type.cpp_type_name)

@@ -39,6 +39,7 @@ py_library(
 py_library(
     name = "datatype_utils",
     srcs = [
+        "array_type.py",
         "datatype_utils.py",
         "enum_type.py",
         "primitive_type.py",

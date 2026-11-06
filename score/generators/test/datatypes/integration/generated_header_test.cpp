@@ -12,10 +12,12 @@
  *******************************************************************************/
 
 #include "example/Types/Bool.h"
+#include "example/Types/ArrayChoice.h"
 #include "example/Types/Count.h"
 #include "example/Types/CurrentState.h"
 #include "example/Types/Double.h"
 #include "example/Types/Float.h"
+#include "example/Types/Grid.h"
 #include "example/Types/Int16.h"
 #include "example/Types/Int16Mode.h"
 #include "example/Types/Int32.h"
@@ -30,6 +32,8 @@
 #include "example/Types/PublicCount.h"
 #include "example/Types/PublicMode.h"
 #include "example/Types/PublicState.h"
+#include "example/Types/PublicRow.h"
+#include "example/Types/ZeroBounds.h"
 #include "example/Types/Text.h"
 #include "example/Types/UInt16.h"
 #include "example/Types/UInt16Mode.h"
@@ -94,9 +98,58 @@ static_assert(std::is_same_v<example::Types::PublicInheritedChoice,
                              std::variant<bool, double, example::Types::Count, example::Types::Count,
                                           example::Types::Int8Mode, example::Types::State, std::string>>);
 static_assert(std::is_same_v<example::Types::Packet::inherited_generated_type, example::Types::PublicInheritedChoice>);
+static_assert(std::is_same_v<example::Types::PublicRow, std::array<std::uint16_t, 7>>);
+static_assert(std::is_same_v<example::Types::Grid::rows_generated_type, std::array<example::Shared::Row, 5>>);
+static_assert(std::is_same_v<example::Types::Grid::row_generated_type, example::Shared::Row>);
+static_assert(std::is_same_v<example::Types::Grid::fixed_generated_type, std::array<std::uint16_t, 3>>);
+static_assert(std::is_same_v<example::Types::Samples, std::vector<std::uint16_t>>);
+static_assert(std::is_same_v<example::Types::ZeroBounds, std::vector<bool>>);
+static_assert(std::is_same_v<example::Types::States, std::array<example::Types::State, 3>>);
+static_assert(std::is_same_v<example::Types::ArrayChoice,
+                             std::variant<example::Types::Samples, std::vector<std::uint16_t>,
+                                          std::array<std::uint16_t, 3>, example::Types::States>>);
 
 int main()
 {
+    example::Types::Grid grid{};
+    if (grid.rows.size() != 5 || grid.rows[0].size() != 7 || grid.row.size() != 7 ||
+        grid.fixed.size() != 3 || !grid.samples.empty())
+    {
+        return 1;
+    }
+    grid.rows[4][6] = 42;
+    grid.samples.resize(8, 7);
+    const example::Types::Grid copied_grid = grid;
+    if (copied_grid.rows[4][6] != 42 || copied_grid.samples.size() != 8 || copied_grid.samples[7] != 7)
+    {
+        return 1;
+    }
+    example::Types::ZeroBounds zero_bounds;
+    zero_bounds.resize(2, true);
+    if (zero_bounds.size() != 2 || !zero_bounds[1])
+    {
+        return 1;
+    }
+    example::Types::ArrayChoice array_choice;
+    if (array_choice.index() != 0 || !std::get<0>(array_choice).empty())
+    {
+        return 1;
+    }
+    array_choice.emplace<1>(10, 9);
+    if (std::get<1>(array_choice).size() != 10)
+    {
+        return 1;
+    }
+    array_choice.emplace<2>();
+    if (std::get<2>(array_choice).size() != 3)
+    {
+        return 1;
+    }
+    array_choice.emplace<3>();
+    if (std::get<3>(array_choice).size() != 3)
+    {
+        return 1;
+    }
     example::Types::Bool enabled{true};
     example::Types::PublicCount count{7};
     example::Types::Text text{"ready"};

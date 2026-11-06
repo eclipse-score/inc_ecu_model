@@ -17,6 +17,7 @@ from collections.abc import Callable, Iterable
 from enum import Enum, auto
 from uuid import UUID
 
+from score.ecu_model.data_types.array import ArrayDataType
 from score.ecu_model.data_types.common import DataTypeBase
 from score.ecu_model.data_types.enum import EnumDataType
 from score.ecu_model.data_types.identifier import Identifier, QualifiedName
@@ -25,6 +26,7 @@ from score.ecu_model.data_types.struct import StructDataType
 from score.ecu_model.data_types.typedef import TypedefDataType
 from score.ecu_model.data_types.union import UnionDataType
 from score.ecu_model.model import ModelElement
+from score.generators.src.datatypes.array_type import build_array_header
 from score.generators.src.datatypes.cpp_model import CppHeaderModel
 from score.generators.src.datatypes.cpp_type_registry import CppTypeInfo, CppTypeRegistry
 from score.generators.src.datatypes.enum_type import build_enum_header
@@ -35,7 +37,7 @@ from score.generators.src.datatypes.union_type import build_union_header
 
 
 class _ProcessingState(Enum):
-    """Track whether a named datatype is being lowered or has completed."""
+    """Track whether a datatype is being lowered or has completed."""
 
     IN_PROGRESS = auto()
     COMPLETE = auto()
@@ -52,34 +54,45 @@ class DatatypeUtils:
         """Register supported datatypes in dependency order, rejecting unsupported input."""
         registry = CppTypeRegistry()
         states: dict[UUID, _ProcessingState] = {}
-        active_path: list[TypedefDataType | EnumDataType | StructDataType | UnionDataType] = []
+        active_path: list[DataTypeBase] = []
 
-        def process(datatype: ModelElement | PrimitiveDataType | Identifier | QualifiedName) -> CppTypeInfo:
+        def process(datatype: ModelElement | PrimitiveDataType | Identifier | QualifiedName) -> CppTypeInfo | None:
             if isinstance(datatype, (Identifier, QualifiedName)):
                 raise ValueError(f"Unresolved datatype reference: {datatype}")
             if isinstance(datatype, PrimitiveDataType):
                 return register_primitive(datatype, registry)
-            if not isinstance(datatype, DataTypeBase):
-                raise TypeError(f"Expected a datatype, got {type(datatype).__name__}")
-            # TODO: Add support for other datatype kinds in the future.
-            if not isinstance(datatype, (TypedefDataType, EnumDataType, StructDataType, UnionDataType)):
-                name = datatype.fully_qualified_name if datatype.name is not None else "<anonymous>"
-                raise NotImplementedError(f"Unsupported datatype: {name} ({datatype.kind})")
+            if not isinstance(datatype, (ArrayDataType, TypedefDataType, EnumDataType, StructDataType, UnionDataType)):
+                raise NotImplementedError(f"Unsupported datatype: {type(datatype).__name__}")
 
             identity = datatype.id
             state = states.get(identity)
             if state is _ProcessingState.COMPLETE:
+                if isinstance(datatype, ArrayDataType) and datatype.is_inline:
+                    return None
                 return registry.named_types[datatype.fully_qualified_name]
             if state is _ProcessingState.IN_PROGRESS:
                 cycle_start = next(index for index, entry in enumerate(active_path) if entry.id == identity)
                 dependency_chain = " -> ".join(
-                    entry.fully_qualified_name for entry in (*active_path[cycle_start:], datatype)
+                    "<inline array>"
+                    if isinstance(entry, ArrayDataType) and entry.is_inline
+                    else entry.fully_qualified_name
+                    for entry in (*active_path[cycle_start:], datatype)
                 )
                 raise ValueError(f"Cyclic datatype dependency detected: {dependency_chain}")
             states[identity] = _ProcessingState.IN_PROGRESS
             active_path.append(datatype)
             try:
-                if isinstance(datatype, TypedefDataType):
+                if isinstance(datatype, ArrayDataType):
+                    process(datatype.data_type)
+                    if datatype.is_inline:
+                        states[identity] = _ProcessingState.COMPLETE
+                        return None
+                    header = build_array_header(datatype, registry)
+                elif isinstance(datatype, TypedefDataType):
+                    if isinstance(datatype.data_type, ArrayDataType) and datatype.data_type.is_inline:
+                        raise NotImplementedError(
+                            f"Inline array typedef targets are currently not supported: {datatype.fully_qualified_name}"
+                        )
                     target_info = process(datatype.data_type)
                     header = build_alias_header(datatype, target_info, registry)
                 elif isinstance(datatype, EnumDataType):

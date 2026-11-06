@@ -15,9 +15,11 @@
 
 from typing import cast
 
+from score.ecu_model.data_types.array import ArrayDataType
 from score.ecu_model.data_types.primitives import PrimitiveDataType
 from score.ecu_model.data_types.struct import StructDataType
 from score.generators.src.common.common_utils import generate_header_file_guard
+from score.generators.src.datatypes.array_type import get_array_type_info
 from score.generators.src.datatypes.cpp_model import CppField, CppHeaderModel, CppStruct
 from score.generators.src.datatypes.cpp_type_registry import CppTypeRegistry
 
@@ -37,6 +39,14 @@ def build_struct_header(datatype: StructDataType, registry: CppTypeRegistry) -> 
         if isinstance(member.data_type, PrimitiveDataType):
             member_type = registry.primitive_types[member.data_type]
             generated_type_alias = None
+        elif isinstance(member.data_type, ArrayDataType):
+            member_type = get_array_type_info(
+                member.data_type,
+                registry,
+                member.deployment_properties,
+                f"{datatype.fully_qualified_name}.{member.name.as_str}",
+            )
+            generated_type_alias = f"{member.name.as_str}_generated_type"
         else:
             member_type = registry.named_types[member.data_type.fully_qualified_name]
             generated_type_alias = f"{member.name.as_str}_generated_type"
