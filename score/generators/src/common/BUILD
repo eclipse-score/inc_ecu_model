@@ -14,6 +14,13 @@
 load("@rules_python//python:defs.bzl", "py_library")
 
 py_library(
+    name = "array_bounds",
+    srcs = ["array_bounds.py"],
+    visibility = ["//score/generators:__subpackages__"],
+    deps = ["//score/ecu_model/data_types"],
+)
+
+py_library(
     name = "common_utils",
     srcs = ["common_utils.py"],
     visibility = ["//score/generators:__subpackages__"],

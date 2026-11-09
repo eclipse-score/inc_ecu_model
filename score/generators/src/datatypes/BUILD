@@ -56,6 +56,7 @@ py_library(
         ":cpp_type_registry",
         "//score/ecu_model",
         "//score/ecu_model/data_types",
+        "//score/generators/src/common:array_bounds",
         "//score/generators/src/common:common_utils",
     ],
 )

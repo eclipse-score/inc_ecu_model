@@ -1,0 +1,69 @@
+/*******************************************************************************
+ * Copyright (c) 2026 Contributors to the Eclipse Foundation
+ *
+ * See the NOTICE file(s) distributed with this work for additional
+ * information regarding copyright ownership.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Apache License Version 2.0 which is available at
+ * https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *******************************************************************************/
+
+#ifndef {{ guard }}
+#define {{ guard }}
+
+#include <cstdint>
+#include <string_view>
+
+namespace score::ecu_model::someip::layout {
+
+// Self-contained until the serializer provides shared layout definitions.
+enum class ByteOrder : std::uint8_t { kBigEndian, kLittleEndian };
+enum class StringEncoding : std::uint8_t { kUtf8, kUtf16 };
+
+struct ElementLayout {
+    ByteOrder byte_order{ByteOrder::kBigEndian};
+    std::uint8_t alignment_bits{8U};
+    std::uint8_t vector_length_field_bytes{4U};
+    std::uint8_t string_length_field_bytes{4U};
+    std::uint8_t struct_length_field_bytes{0U};
+    StringEncoding string_encoding{StringEncoding::kUtf8};
+};
+
+{% for layout in layouts %}
+inline constexpr ElementLayout kLayout_{{ layout.layout_id }}{
+    ByteOrder::k{{ layout.byte_order.value }},
+    {{ layout.alignment_bits }}U,
+    {{ layout.vector_length_field_bytes }}U,
+    {{ layout.string_length_field_bytes }}U,
+    {{ layout.struct_length_field_bytes }}U,
+    StringEncoding::k{{ layout.string_encoding.value }},
+};
+
+{% endfor %}
+struct LayoutEntry {
+    std::string_view hash_id;
+    const ElementLayout* layout;
+};
+
+inline constexpr LayoutEntry kLayouts[]{
+{% for layout in layouts %}
+    {"{{ layout.layout_id }}", &kLayout_{{ layout.layout_id }}},
+{% endfor %}
+};
+
+[[nodiscard]] inline constexpr const ElementLayout* FindLayout(
+    std::string_view hash_id) noexcept {
+    for (const auto& entry : kLayouts) {
+        if (entry.hash_id == hash_id) {
+            return entry.layout;
+        }
+    }
+    return nullptr;
+}
+
+}  // namespace score::ecu_model::someip::layout
+
+#endif  // {{ guard }}{{ "\n" -}}
