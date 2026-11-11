@@ -17,8 +17,10 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from score.ecu_model.communication.service_interface import InterfaceDefinition
 from score.ecu_model.data_types.common import DataTypeBase
 from score.ecu_model.data_types.identifier import QualifiedName
+from score.ecu_model.model import ModelElement
 from score.parsers.franca_parser.model.fidl.fidl_file import (
     FIDLFileModel,
 )
@@ -40,9 +42,9 @@ class PendingDatatypeReference:
 
     reference: QualifiedName
     bind: Callable[[DataTypeBase], None]
-    owning_declaration: DataTypeBase
+    owning_declaration: ModelElement
     owning_file: FIDLFileModel | None = None
-    owning_collection: TypeCollection | None = None
+    owning_collection: TypeCollection | InterfaceDefinition | None = None
 
 
 class FIDLDataTypeResolver:
@@ -56,20 +58,24 @@ class FIDLDataTypeResolver:
         self,
         reference: QualifiedName,
         owning_file: FIDLFileModel,
-        owning_collection: TypeCollection,
+        owning_collection: TypeCollection | InterfaceDefinition,
     ) -> DataTypeBase:
-        """Resolve one reference from a type collection or raise a contextual error."""
-        matches = self._local_matches(reference, owning_file, owning_collection)
-        matches.extend(self._import_matches(reference, owning_file))
-        return self._single_match(reference, owning_file, matches, required=True)
+        """Resolve by owning scope, same-file type collections, then direct imports."""
+        resolved = self.resolve_local(reference, owning_file, owning_collection)
+        if resolved is not None:
+            return resolved
+        resolved = self.resolve_imports(reference, owning_file)
+        if resolved is not None:
+            return resolved
+        raise ValueError(f"Referenced datatype '{reference.as_str}' in '{owning_file.file_path}' was not found")
 
     def resolve_local(
         self,
         reference: QualifiedName,
         owning_file: FIDLFileModel,
-        owning_collection: TypeCollection,
+        owning_collection: TypeCollection | InterfaceDefinition,
     ) -> DataTypeBase | None:
-        """Resolve only a declaration in the owning type collection."""
+        """Resolve the owning scope first, then other declarations in the same file."""
         return self._single_match(
             reference,
             owning_file,
@@ -114,7 +120,7 @@ class FIDLDataTypeResolver:
         self,
         pending_references: list[PendingDatatypeReference],
     ) -> None:
-        """Resolve datatype references deferred behind circular FIDL imports."""
+        """Resolve references deferred until every imported FIDL file is transformed."""
         for pending in pending_references:
             if pending.owning_file is None:
                 raise ValueError(f"Missing owning FIDL file for datatype reference {pending.reference.as_str}")
@@ -130,18 +136,49 @@ class FIDLDataTypeResolver:
         self,
         reference: QualifiedName,
         owning_file: FIDLFileModel,
-        owning_collection: TypeCollection,
+        owning_collection: TypeCollection | InterfaceDefinition,
     ) -> list[DataTypeBase]:
-        matches = self._lookup_candidates(
-            owning_file, self._collection_base_parts(owning_file, owning_collection), reference
-        )
-        reference_parts = self._fqn_parts(reference)
-        if len(reference_parts) > 1:
-            sibling_identity = ".".join((*self._fqn_parts(owning_file.namespace), *reference_parts[-2:]))
-            sibling = owning_file.lookup_datatype(sibling_identity)
-            if sibling is not None:
-                matches.append(sibling)
+        matches = self._collection_matches(owning_file, owning_collection, reference, allow_short_name=True)
+        if matches:
+            return matches
+
+        matches = []
+        for collection in owning_file.type_collections:
+            if isinstance(owning_collection, TypeCollection) and collection is owning_collection:
+                continue
+            matches.extend(
+                self._collection_matches(
+                    owning_file,
+                    collection,
+                    reference,
+                    allow_short_name=collection.name is None,
+                )
+            )
         return matches
+
+    def _collection_matches(
+        self,
+        file_model: FIDLFileModel,
+        collection: TypeCollection | InterfaceDefinition,
+        reference: QualifiedName,
+        allow_short_name: bool,
+        base_parts: tuple[str, ...] | None = None,
+    ) -> list[DataTypeBase]:
+        """Match names only against one scope, optionally allowing an unqualified name."""
+        reference_qn_tuple = self._fqn_parts(reference)
+        if len(reference_qn_tuple) == 1 and not allow_short_name:
+            return []
+
+        collection_fqn_tuple = self._fqn_parts(file_model.namespace)
+        if collection.name is not None:
+            collection_fqn_tuple = (*collection_fqn_tuple, collection.name.as_str)
+        lookup_base_parts = base_parts or collection_fqn_tuple
+        candidate_identities = set(expand_fqn_candidates(lookup_base_parts, reference_qn_tuple))
+        return [
+            datatype
+            for datatype in collection.datatypes
+            if ".".join((*collection_fqn_tuple, datatype.name.as_str)) in candidate_identities
+        ]
 
     def _import_matches(
         self,
@@ -158,7 +195,16 @@ class FIDLDataTypeResolver:
                 if imported_namespace.namespace is not None
                 else self._fqn_parts(imported_file.namespace)
             )
-            matches.extend(self._lookup_candidates(imported_file, base_parts, reference))
+            for collection in imported_file.type_collections:
+                matches.extend(
+                    self._collection_matches(
+                        imported_file,
+                        collection,
+                        reference,
+                        allow_short_name=collection.name is None,
+                        base_parts=base_parts,
+                    )
+                )
         return matches
 
     @staticmethod
@@ -181,24 +227,6 @@ class FIDLDataTypeResolver:
                 raise ValueError(f"Referenced datatype '{reference.as_str}' in '{owning_file.file_path}' was not found")
             return None
         raise ValueError(f"Ambiguous datatype reference '{reference.as_str}' in '{owning_file.file_path}'")
-
-    def _lookup_candidates(
-        self,
-        target_file: FIDLFileModel,
-        base_parts: tuple[str, ...],
-        reference: QualifiedName,
-    ) -> list[DataTypeBase]:
-        return [
-            datatype
-            for candidate in expand_fqn_candidates(base_parts, self._fqn_parts(reference))
-            if (datatype := target_file.lookup_datatype(candidate)) is not None
-        ]
-
-    def _collection_base_parts(self, file_model: FIDLFileModel, type_collection: TypeCollection) -> tuple[str, ...]:
-        package_parts = self._fqn_parts(file_model.namespace)
-        if type_collection.name is None:
-            return package_parts
-        return (*package_parts, type_collection.name.as_str)
 
     @staticmethod
     def _fqn_parts(qualified_name: QualifiedName | None) -> tuple[str, ...]:

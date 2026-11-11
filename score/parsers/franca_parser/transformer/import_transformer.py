@@ -51,6 +51,12 @@ class FrancaImportTransformer(FrancaFileTransformer):
 
     @staticmethod
     @v_args(inline=True)
+    def f_imported_fqn(namespace: QualifiedName) -> QualifiedName:
+        """Expose the namespace wrapped by the FIDL import grammar."""
+        return namespace
+
+    @staticmethod
+    @v_args(inline=True)
     def f_import_uri(uri: object) -> str:
         """Normalize quoted Franca import URIs."""
         return str(uri).strip("'\"")

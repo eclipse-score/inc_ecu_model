@@ -1,0 +1,21 @@
+package example.interfaces
+
+interface Base {
+    version { major 1 minor 0 }
+    method ping {}
+}
+
+interface API extends Base {
+    version { major 1 minor 2 }
+    struct Payload { UInt32 value }
+    enumeration Errors { FAILED = 1 RETRY }
+    method query:first {
+        in { Payload value }
+        out { String[0,25] text }
+        error Errors
+    }
+    method query:second { in { String text } }
+    method notify fireAndForget { in { UInt32 value } }
+    attribute Payload status readonly
+    broadcast changed selective { out { Payload value } }
+}

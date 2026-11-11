@@ -1,0 +1,10 @@
+package example.franca.services
+
+import model "../../../../franca_parser/test/transformer/file_graph/test_data/root_imports_types.fidl"
+
+interface Service {
+    version { major 1 minor 0 }
+    method query:first { out { RootTypes.RootValue value } }
+    method query:second { in { UInt32 key } out { RootTypes.RootValue value } }
+    broadcast changed { out { RootTypes.RootValue value } }
+}

@@ -51,6 +51,7 @@ from score.parsers.franca_parser.model.parsed_file import ParsedFile
 from score.parsers.franca_parser.transformer.base_transformer import (
     FrancaFileTransformer,
     franca_identifier,
+    franca_integer,
 )
 from score.parsers.franca_parser.transformer.resolver.fdepl_resolver import (
     FDEPLResolver,
@@ -248,7 +249,7 @@ class FDEPLTransformer(FrancaFileTransformer):
     @v_args(inline=True)
     def integer(value: object) -> int:
         """Transform decimal, hexadecimal, and binary deployment values."""
-        return int(str(value), 0)
+        return franca_integer(value)
 
     @staticmethod
     @v_args(inline=True)

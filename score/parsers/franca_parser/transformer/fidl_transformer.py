@@ -15,8 +15,10 @@
 
 from collections.abc import Callable
 
-from lark import Token, v_args
+from lark import Token, Tree, v_args
 
+from score.ecu_model.common.version import Version
+from score.ecu_model.communication.service_interface import Attribute, Broadcast, InterfaceDefinition, Method
 from score.ecu_model.data_types.array import ArrayDataType
 from score.ecu_model.data_types.common import (
     DataTypeBase,
@@ -25,12 +27,13 @@ from score.ecu_model.data_types.common import (
 )
 from score.ecu_model.data_types.composite import DataTypeField
 from score.ecu_model.data_types.enum import EnumDataType, EnumValue
-from score.ecu_model.data_types.identifier import Identifier, QualifiedName
+from score.ecu_model.data_types.identifier import Identifier, QualifiedName, SelectableIdentifier
 from score.ecu_model.data_types.map import MapDataType
 from score.ecu_model.data_types.primitives import PrimitiveDataType
 from score.ecu_model.data_types.struct import StructDataType
 from score.ecu_model.data_types.typedef import TypedefDataType
 from score.ecu_model.data_types.union import UnionDataType
+from score.ecu_model.model import ModelElement
 from score.parsers.franca_parser.model.fidl.fidl_file import FIDLFileModel
 from score.parsers.franca_parser.model.fidl.type_collection import (
     TypeCollection,
@@ -42,6 +45,7 @@ from score.parsers.franca_parser.model.franca_file import (
 from score.parsers.franca_parser.model.parsed_file import ParsedFile
 from score.parsers.franca_parser.transformer.base_transformer import (
     FrancaFileTransformer,
+    franca_integer,
 )
 from score.parsers.franca_parser.transformer.resolver.fidl_datatype_resolver import (
     FIDLDataTypeResolver,
@@ -78,7 +82,6 @@ class FIDLTransformer(FrancaFileTransformer):
     ) -> None:
         """Create a transformer with declarations visible from completed imports."""
         super().__init__()
-        self._transformed_files = transformed_files
         self._import_resolver = FIDLDataTypeResolver(transformed_files)
         self._transformation_context = transformation_context
         self._pending_datatype_references_by_declaration: dict[int, list[PendingDatatypeReference]] = {}
@@ -91,6 +94,7 @@ class FIDLTransformer(FrancaFileTransformer):
 
     def transform_file(self, parsed_file: ParsedFile) -> FIDLFileModel:
         """Produce the file model available to dependent FIDL transformations."""
+
         file_model = self.transform(parsed_file.parse_tree)
         file_model.file_path = parsed_file.file_path
         file_model.imported_files = parsed_file.imports
@@ -100,20 +104,29 @@ class FIDLTransformer(FrancaFileTransformer):
     @staticmethod
     def _declaration_namespace(
         package: QualifiedName,
-        collection: TypeCollection,
+        type_def_scope: TypeCollection | InterfaceDefinition,
     ) -> QualifiedName:
         """Return the namespace of declarations owned by one type collection."""
         names = list(package.names)
-        if collection.name is not None:
-            names.append(collection.name)
+        if type_def_scope.name is not None:
+            names.append(type_def_scope.name)
         return QualifiedName(tuple(names))
 
     @classmethod
     def _apply_declaration_metadata(cls, file_model: FIDLFileModel) -> None:
-        """Assign metadata shared by declarations in each type collection."""
-        for collection in file_model.type_collections:
-            namespace = cls._declaration_namespace(file_model.namespace, collection)
-            for datatype in collection.datatypes:
+        """
+        * Update the `namespace` field of each interface within the `file_model` parameter.
+        * Update the `namespace` and `source_uri` fields of each datatype within every `typeCollection` and `interface`
+          blocks of the `file_model` parameter.
+        """
+        # 1. Update the `namespace` field of each interface
+        for interface in file_model.interfaces:
+            interface.namespace = file_model.namespace
+
+        # 2. Update the `namespace` and `source_uri` fields of each datatype within type collections and interfaces.
+        for type_def_scope in [*file_model.type_collections, *file_model.interfaces]:
+            namespace = cls._declaration_namespace(file_model.namespace, type_def_scope)
+            for datatype in type_def_scope.datatypes:
                 datatype.namespace = namespace
                 datatype.source_uri = str(file_model.file_path)
 
@@ -124,10 +137,7 @@ class FIDLTransformer(FrancaFileTransformer):
             return value + 1
         return 0
 
-    def resolve_local_references(
-        self,
-        file_model: FIDLFileModel,
-    ) -> None:
+    def resolve_local_references(self, file_model: FIDLFileModel) -> None:
         """Bind references not resolved from imports during transformation."""
         self._pending_datatype_references = self._import_resolver.resolve_local_references(
             self._pending_datatype_references,
@@ -149,8 +159,8 @@ class FIDLTransformer(FrancaFileTransformer):
             self._record_reference(datatype, datatype.key_type, lambda value: setattr(datatype, "key_type", value))
             self._record_reference(datatype, datatype.value_type, lambda value: setattr(datatype, "value_type", value))
 
-    def _record_field_references(self, datatype: DataTypeBase, field: DataTypeField) -> None:
-        if isinstance(field.data_type, ArrayDataType):
+    def _record_field_references(self, datatype: ModelElement, field: DataTypeField) -> None:
+        if isinstance(field.data_type, ArrayDataType) and field.data_type.is_inline:
             self._record_reference(
                 datatype,
                 field.data_type.data_type,
@@ -161,7 +171,7 @@ class FIDLTransformer(FrancaFileTransformer):
 
     def _record_reference(
         self,
-        datatype: DataTypeBase,
+        datatype: ModelElement,
         reference: object,
         bind: Callable[[DataTypeOrReference], None],
     ) -> None:
@@ -179,28 +189,35 @@ class FIDLTransformer(FrancaFileTransformer):
     @v_args(inline=True)
     def fi_model_root(self, package: QualifiedName, *elements: object) -> FIDLFileModel:
         """Build the FIDL file model from its transformed type collections."""
-        type_collections: list[TypeCollection] = []
-        used_valid_ids: set[str] = set()
+        # 1. Transform type collections and interfaces
+        type_collections: list[TypeCollection] = []  # All `typeCollection` elements in the FIDL file.
+        interfaces: list[InterfaceDefinition] = []  # All `interface` elements in the FIDL file.
+        used_valid_ids: set[str] = set()  # Duplication check for the names of type collections and interfaces
         for element in elements:
-            if not isinstance(element, TypeCollection):
+            if isinstance(element, InterfaceDefinition):
+                interfaces.append(element)
+            elif isinstance(element, TypeCollection):
+                type_collections.append(element)
+            else:
                 continue
-            if element.name is not None:
-                collection_name = element.name.as_str
-                # Match franca2arxml validation for named tc/interface declarations.
-                if collection_name in used_valid_ids:
-                    raise ValueError(
-                        f"Duplicate TypeCollection ID {collection_name} found in "
-                        f"{self._transformation_context.file_path}"
-                    )
-                used_valid_ids.add(collection_name)
-            type_collections.append(element)
-        # TODO: verify interface names in used_valid_ids set.
+
+            if element.name is None:
+                continue
+            name = element.name.as_str
+            if name in used_valid_ids:
+                raise ValueError(f"Duplicate ID {name} found in {self._transformation_context.file_path}")
+            used_valid_ids.add(name)
+
+        # 2. Build the FIDL file model
         file_model = FIDLFileModel(
             file_path=self._transformation_context.file_path,
             namespace=package,
             imported_files=self._transformation_context.imported_files,
             type_collections=type_collections,
+            interfaces=interfaces,
         )
+
+        # 3. Resolve local references within the FIDL file
         self.resolve_local_references(file_model)
         return file_model
 
@@ -209,6 +226,12 @@ class FIDLTransformer(FrancaFileTransformer):
     def fi_model_elements(element: object) -> object:
         """Unwrap top-level FIDL model elements."""
         return element
+
+    @staticmethod
+    @v_args(inline=True)
+    def f_version(major: object, minor: object) -> Version:
+        """Transform a FIDL major and minor version declaration."""
+        return Version(major=int(str(major)), minor=int(str(minor)), patch=0)
 
     @v_args(inline=True)
     def fi_type_collection(self, *elements: object) -> TypeCollection:
@@ -241,9 +264,9 @@ class FIDLTransformer(FrancaFileTransformer):
         return data_type
 
     @v_args(inline=True)
-    def imported(self, reference: QualifiedName) -> QualifiedName | DataTypeBase:
-        """Resolve a reference from already transformed imports when possible."""
-        return self._import_resolver.resolve_imports(reference, self._transformation_context) or reference
+    def imported(self, reference: QualifiedName) -> QualifiedName:
+        """Keep named references pending until all declarations in the file are available."""
+        return reference
 
     @v_args(inline=True)
     def interval(self, _interval: object) -> object:
@@ -255,11 +278,7 @@ class FIDLTransformer(FrancaFileTransformer):
         """Transform a FIDL typedef declaration."""
         name = next(element for element in elements if isinstance(element, Identifier))
         data_type = next(element for element in elements if isinstance(element, _DATA_TYPE_ELEMENTS))
-        datatype = TypedefDataType(
-            name=name,
-            source_kind=DataTypeSource.FRANCA,
-            data_type=data_type,
-        )
+        datatype = TypedefDataType(name=name, source_kind=DataTypeSource.FRANCA, data_type=data_type)
         self._record_datatype_references(datatype)
         return datatype
 
@@ -293,7 +312,11 @@ class FIDLTransformer(FrancaFileTransformer):
         """Transform one FIDL enum literal."""
         name = next(element for element in elements if isinstance(element, Identifier))
         is_negative = any(isinstance(element, Token) and str(element) == "-" for element in elements)
-        value = next((element for element in elements if isinstance(element, int)), None)
+        value = next(
+            (element for element in elements if isinstance(element, int) and not isinstance(element, bool)), None
+        )
+        if any(isinstance(element, (bool, float, str)) and not isinstance(element, Token) for element in elements):
+            raise ValueError("FIDL enum values must be integer literals")
         if is_negative and value is not None:
             value = -value
         return EnumValue(name=name, value=value)
@@ -345,12 +368,7 @@ class FIDLTransformer(FrancaFileTransformer):
         name = next(element for element in elements if isinstance(element, Identifier))
         data_types = [element for element in elements if isinstance(element, _DATA_TYPE_ELEMENTS)]
         key_type, value_type = data_types
-        datatype = MapDataType(
-            name=name,
-            source_kind=DataTypeSource.FRANCA,
-            key_type=key_type,
-            value_type=value_type,
-        )
+        datatype = MapDataType(name=name, source_kind=DataTypeSource.FRANCA, key_type=key_type, value_type=value_type)
         self._record_datatype_references(datatype)
         return datatype
 
@@ -411,19 +429,19 @@ class FIDLTransformer(FrancaFileTransformer):
     @v_args(inline=True)
     def lower_dim(value: object) -> tuple[str, int]:
         """Transform an explicit lower array dimension bound."""
-        return "lower", int(str(value))
+        return "lower", franca_integer(value)
 
     @staticmethod
     @v_args(inline=True)
     def upper_dim(value: object) -> tuple[str, int]:
         """Transform an explicit upper array dimension bound."""
-        return "upper", int(str(value))
+        return "upper", franca_integer(value)
 
     @staticmethod
     @v_args(inline=True)
     def integer(value: object) -> int:
         """Transform a decimal, hexadecimal, or binary integer literal."""
-        return int(str(value), 0)
+        return franca_integer(value)
 
     @v_args(inline=True)
     def boolean_type(self) -> PrimitiveDataType:
@@ -513,3 +531,246 @@ class FIDLTransformer(FrancaFileTransformer):
     def int64(self) -> PrimitiveDataType:
         """Transform the Int64 primitive type name."""
         return PRIMITIVE_TYPES["int64"]
+
+    @staticmethod
+    @v_args(inline=True)
+    def fi_id_with_selector(name: Identifier, selector: Identifier | None = None) -> SelectableIdentifier:
+        """Transform a method or broadcast name with an optional selector."""
+        return SelectableIdentifier(f"{name}:{selector}" if selector is not None else str(name))
+
+    @staticmethod
+    @v_args(inline=True)
+    def interface_element(element: object = None) -> object:
+        """Return one interface member or datatype declaration."""
+        return element
+
+    @v_args(inline=True)
+    def fi_interface(self, *elements: object) -> InterfaceDefinition:
+        """Lark callback."""
+        annotation = next(
+            (
+                str(element.children[0])
+                for element in elements
+                if isinstance(element, Tree) and element.data == "f_annotation_block"
+            ),
+            "",
+        )
+        name = next((element for element in elements if isinstance(element, Identifier)), None)
+        if name is None:
+            raise ValueError(f"Interface requires a name in {self._transformation_context.file_path}")
+        version = next((element for element in elements if isinstance(element, Version)), None)
+        if version is None:
+            raise ValueError(
+                f"Interface '{name}' requires an explicit version in {self._transformation_context.file_path}"
+            )
+
+        methods: dict[SelectableIdentifier, Method] = {}
+        broadcasts: dict[SelectableIdentifier, Broadcast] = {}
+        attributes: dict[Identifier, Attribute] = {}
+        datatypes: list[DataTypeBase] = []
+        used_member_names: set[str] = set()
+        for element in elements:
+            if not isinstance(element, (Method, Broadcast, Attribute, DataTypeBase)):
+                continue
+            element_name = element.name.as_str
+            if element_name in used_member_names:
+                raise ValueError(
+                    f"Duplicate interface member '{element_name}' in {self._transformation_context.file_path}"
+                )
+            used_member_names.add(element_name)
+
+            if isinstance(element, Method):
+                methods[element.name] = element
+            elif isinstance(element, Broadcast):
+                broadcasts[element.name] = element
+            elif isinstance(element, Attribute):
+                attributes[element.name] = element
+            elif isinstance(element, DataTypeBase):
+                datatypes.append(element)
+
+        interface = InterfaceDefinition(
+            name=name,
+            description=annotation,
+            version=version,
+            methods=methods,
+            broadcasts=broadcasts,
+            attributes=attributes,
+            datatypes=datatypes,
+        )
+        for declaration in [*datatypes, *methods.values(), *broadcasts.values(), *attributes.values()]:
+            for pending in self._pending_datatype_references_by_declaration.pop(id(declaration), []):
+                pending.owning_collection = interface
+                self._pending_datatype_references.append(pending)
+        return interface
+
+    @staticmethod
+    def fi_method_input(arguments: list[DataTypeField]) -> tuple[str, list[DataTypeField]]:
+        """Label method input fields for method construction."""
+        return "inputs", arguments
+
+    @staticmethod
+    def fi_method_output(arguments: list[DataTypeField]) -> tuple[str, list[DataTypeField]]:
+        """Label method output fields for method construction."""
+        return "outputs", arguments
+
+    fi_broadcast_output = fi_method_output
+
+    @staticmethod
+    def fi_fire_and_forget(_elements: list[object]) -> bool:
+        """Mark a fire-and-forget method."""
+        return True
+
+    @staticmethod
+    @v_args(inline=True)
+    def fi_method_error(reference: QualifiedName) -> QualifiedName:
+        """Return a named method error reference for later resolution."""
+        return reference
+
+    @staticmethod
+    def fi_enumeration_type_body(_elements: list[object]) -> None:
+        """Reject anonymous method error enumerations."""
+        raise ValueError("Anonymous method error enumerations are not supported; reference a named enumeration")
+
+    def _validate_parameter_names(self, name: SelectableIdentifier, arguments: list[DataTypeField]) -> None:
+        """Require unique parameter names within one input or output block."""
+        if len({argument.name for argument in arguments}) != len(arguments):
+            raise ValueError(f"Duplicate parameter in '{name}' ({self._transformation_context.file_path})")
+
+    @v_args(inline=True)
+    def fi_method(self, *elements: object) -> Method:
+        """Lark callback."""
+        description = next(
+            (
+                str(element.children[0])
+                for element in elements
+                if isinstance(element, Tree) and element.data == "f_annotation_block"
+            ),
+            "",
+        )
+        name = next((element for element in elements if isinstance(element, SelectableIdentifier)), None)
+        if name is None:
+            raise ValueError(f"Method requires a name in {self._transformation_context.file_path}")
+        fire_and_forget = any(element is True for element in elements)
+        inputs = next((element[1] for element in elements if isinstance(element, tuple) and element[0] == "inputs"), [])
+        outputs = next(
+            (element[1] for element in elements if isinstance(element, tuple) and element[0] == "outputs"), []
+        )
+        error_description = next(
+            (
+                str(element.children[0].children[0])
+                for element in elements
+                if isinstance(element, Tree) and element.data == "fi_error_comment"
+            ),
+            "",
+        )
+        error = next((element for element in elements if isinstance(element, QualifiedName)), None)
+
+        self._validate_parameter_names(name, inputs)
+        self._validate_parameter_names(name, outputs)
+        if fire_and_forget and (outputs or error is not None):
+            raise ValueError(f"fireAndForget method '{name}' has output or error")
+
+        method = Method(
+            name=name,
+            description=description,
+            inputs=inputs,
+            outputs=outputs,
+            error_return_codes=error,
+            error_description=error_description,
+            fire_and_forget=fire_and_forget,
+        )
+        for argument in [*method.inputs, *method.outputs]:
+            self._record_field_references(method, argument)
+        self._record_reference(method, error, lambda value: setattr(method, "error_return_codes", value))
+        return method
+
+    @staticmethod
+    def fi_selective(_elements: list[object]) -> bool:
+        """Mark a selective broadcast."""
+        return True
+
+    @v_args(inline=True)
+    def fi_broadcast(self, *elements: object) -> Broadcast:
+        """Transform a broadcast and record its output datatype references."""
+        description = next(
+            (
+                str(element.children[0])
+                for element in elements
+                if isinstance(element, Tree) and element.data == "f_annotation_block"
+            ),
+            "",
+        )
+        name = next((element for element in elements if isinstance(element, SelectableIdentifier)), None)
+        if name is None:
+            raise ValueError(f"Broadcast requires a name in {self._transformation_context.file_path}")
+        selective = any(element is True for element in elements)
+        outputs = next(
+            (element[1] for element in elements if isinstance(element, tuple) and element[0] == "outputs"), []
+        )
+        self._validate_parameter_names(name, outputs)
+        broadcast = Broadcast(name=name, description=description, outputs=outputs, selective=selective)
+        for argument in broadcast.outputs:
+            self._record_field_references(broadcast, argument)
+        return broadcast
+
+    @staticmethod
+    def access_q_readonly(_elements: list[object]) -> str:
+        """Return the readonly attribute access qualifier."""
+        return "readonly"
+
+    @staticmethod
+    def access_q_no_read(_elements: list[object]) -> str:
+        """Return the no-read attribute access qualifier."""
+        return "noRead"
+
+    @staticmethod
+    def access_q_no_subscriptions(_elements: list[object]) -> str:
+        """Return the no-subscriptions attribute access qualifier."""
+        return "noSubscriptions"
+
+    @staticmethod
+    def attr_access_qualifier(qualifiers: list[str]) -> set[str]:
+        """Collect attribute access qualifiers."""
+        return set(qualifiers)
+
+    @v_args(inline=True)
+    def fi_attribute(self, *elements: object) -> Attribute:
+        """Lark callback."""
+        description = next(
+            (
+                str(element.children[0])
+                for element in elements
+                if isinstance(element, Tree) and element.data == "f_annotation_block"
+            ),
+            "",
+        )
+        declaration = next((element for element in elements if isinstance(element, DataTypeField)), None)
+        if declaration is None:
+            raise ValueError(f"Attribute requires a type and name in {self._transformation_context.file_path}")
+        qualifiers = next((element for element in elements if isinstance(element, set)), None)
+        if qualifiers is None:
+            raise ValueError(f"Attribute requires an access qualifier node in {self._transformation_context.file_path}")
+
+        attribute = Attribute(
+            name=declaration.name,
+            description=description,
+            data_type=declaration.data_type,
+            has_getter="noRead" not in qualifiers,
+            has_setter="readonly" not in qualifiers,
+            subscribable="noSubscriptions" not in qualifiers,
+        )
+        if isinstance(attribute.data_type, ArrayDataType) and attribute.data_type.is_inline:
+            self._record_reference(
+                attribute,
+                attribute.data_type.data_type,
+                lambda value: setattr(attribute.data_type, "data_type", value),
+            )
+        else:
+            self._record_reference(attribute, attribute.data_type, lambda value: setattr(attribute, "data_type", value))
+        return attribute
+
+    @staticmethod
+    def f_annotation_block(annotations: list[Tree]) -> Tree:
+        """Lark callback."""
+        description = "".join(str(token) for annotation in annotations for token in annotation.children)
+        return Tree("f_annotation_block", [description])
