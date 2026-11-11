@@ -15,7 +15,7 @@ from enum import Enum
 
 from pydantic import ConfigDict, Field
 
-from score.ecu_model.model import ModelElement
+from score.ecu_model.model import RegisteredModelElement
 
 
 class ProtocolKind(str, Enum):
@@ -34,7 +34,7 @@ class NetworkKind(str, Enum):
     IPC = "IPC"
 
 
-class CommunicationBinding(ModelElement):
+class CommunicationBinding(RegisteredModelElement):
     """Generic core communication binding for all supported platform protocols."""
 
     model_config = ConfigDict(validate_assignment=True)

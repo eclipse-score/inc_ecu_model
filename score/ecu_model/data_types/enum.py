@@ -23,10 +23,10 @@ from score.ecu_model.data_types.common import (
     DataTypeSource,
     Identifier,
 )
-from score.ecu_model.model import ModelObject
+from score.ecu_model.model import ModelElement
 
 
-class EnumValue(ModelObject):
+class EnumValue(ModelElement):
     """A named enum literal with an optional numeric value."""
 
     name: Identifier = Field(

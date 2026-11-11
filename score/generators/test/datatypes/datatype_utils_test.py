@@ -24,7 +24,7 @@ from score.ecu_model.data_types.identifier import Identifier, QualifiedName
 from score.ecu_model.data_types.primitives import PrimitiveDataType
 from score.ecu_model.data_types.struct import StructDataType
 from score.ecu_model.data_types.typedef import TypedefDataType
-from score.ecu_model.model import ModelElement, ModelRegistry
+from score.ecu_model.model import ModelRegistry, RegisteredModelElement
 from score.generators.src.datatypes.cpp_model import CppAlias
 from score.generators.src.datatypes.datatype_collector import DatatypeCollector
 from score.generators.src.datatypes.datatype_generator import DatatypeGenerator
@@ -128,7 +128,7 @@ class DatatypeUtilsTest(unittest.TestCase):
 
     def test_collector_preserves_order_without_filtering_entries(self):
         """Invalid entries and supported datatypes are passed to lowering unchanged."""
-        element = ModelElement()
+        element = RegisteredModelElement()
         alias = TypedefDataType(name="Count", source_kind=DataTypeSource.FRANCA, data_type=PrimitiveDataType.UINT8)
         record = StructDataType(name="Record", source_kind=DataTypeSource.FRANCA, fields=[])
         selected = DatatypeCollector.collect({"data_types": {element.id: element, alias.id: alias, record.id: record}})
@@ -175,10 +175,10 @@ class DatatypeUtilsTest(unittest.TestCase):
 
     def test_generator_rejects_non_datatype_entries_before_writing(self):
         """Non-datatype entries reach lowering and fail instead of being skipped."""
-        element = ModelElement()
+        element = RegisteredModelElement()
         with tempfile.TemporaryDirectory() as temporary_directory:
             output_dir = Path(temporary_directory) / "out"
-            with self.assertRaisesRegex(NotImplementedError, "Unsupported datatype: ModelElement"):
+            with self.assertRaisesRegex(NotImplementedError, "Unsupported datatype: RegisteredModelElement"):
                 DatatypeGenerator().generate({"data_types": {element.id: element}}, output_dir)
             self.assertFalse(output_dir.exists())
 

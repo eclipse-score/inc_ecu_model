@@ -33,7 +33,10 @@ py_library(
     name = "datatype_collector",
     srcs = ["datatype_collector.py"],
     visibility = ["//score/generators:__subpackages__"],
-    deps = ["//score/ecu_model"],
+    deps = [
+        "//score/ecu_model",
+        "//score/ecu_model/data_types",
+    ],
 )
 
 py_library(

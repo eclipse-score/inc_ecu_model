@@ -17,21 +17,21 @@ from uuid import UUID, uuid4
 
 from pydantic import ValidationError
 
-from score.ecu_model.model import ModelElement, ModelObject, ModelRegistry
+from score.ecu_model.model import ModelElement, ModelRegistry, RegisteredModelElement
 
 
-class TestModelObject(unittest.TestCase):
+class TestModelElement(unittest.TestCase):
     def test_identity_and_description_are_retained_without_registration(self) -> None:
         identity = uuid4()
-        model_object = ModelObject(id=identity, description="Owned model object")
+        model_object = ModelElement(id=identity, description="Owned model object")
 
         self.assertEqual(model_object.id, identity)
         self.assertEqual(model_object.description, "Owned model object")
         self.assertNotIn(identity, ModelRegistry.elements)
-        self.assertEqual(str(model_object), f"ModelObject(id={identity}, description=Owned model object)")
+        self.assertEqual(str(model_object), f"ModelElement(id={identity}, description=Owned model object)")
 
     def test_assignment_is_validated_without_registration(self) -> None:
-        model_object = ModelObject()
+        model_object = ModelElement()
         self.assertIsInstance(model_object.id, UUID)
         self.assertEqual(model_object.description, "")
 
@@ -53,43 +53,44 @@ class TestModelRegistry(unittest.TestCase):
         self.assertNotIn(root, ModelRegistry.elements.values())
 
     def test_registration_rejects_an_owned_model_object(self) -> None:
-        model_object = ModelObject()
+        model_object = ModelElement()
 
         self.assertRaises(TypeError, ModelRegistry.register, model_object)
         self.assertNotIn(model_object.id, ModelRegistry.elements)
 
 
-class TestModelElement(unittest.TestCase):
+class TestRegisteredModelElement(unittest.TestCase):
     def test_default_fields(self) -> None:
-        element = ModelElement()
+        element = RegisteredModelElement()
         self.assertIsInstance(element.id, UUID)
         self.assertEqual(element.description, "")
 
     def test_custom_description(self) -> None:
-        element = ModelElement(description="Another test element")
+        element = RegisteredModelElement(description="Another test element")
         self.assertEqual(element.description, "Another test element")
 
     def test_registered_in_the_registry(self) -> None:
-        element = ModelElement()
+        element = RegisteredModelElement()
+        self.assertIsInstance(element, ModelElement)
         self.assertIs(ModelRegistry.elements[element.id], element)
 
     def test_duplicate_id_raises_validation_error(self) -> None:
         shared_id = uuid4()
-        ModelElement(id=shared_id)
+        RegisteredModelElement(id=shared_id)
         with self.assertRaises(ValidationError):
-            ModelElement(id=shared_id)
+            RegisteredModelElement(id=shared_id)
 
     def test_str_representation(self) -> None:
-        element = ModelElement(description="desc")
-        self.assertEqual(str(element), f"ModelElement(id={element.id}, description=desc)")
+        element = RegisteredModelElement(description="desc")
+        self.assertEqual(str(element), f"RegisteredModelElement(id={element.id}, description=desc)")
 
     def test_assignment_is_validated(self) -> None:
-        element = ModelElement()
+        element = RegisteredModelElement()
         element.description = "updated"
         self.assertEqual(element.description, "updated")
 
     def test_invalid_assignment_raises_validation_error(self) -> None:
-        element = ModelElement()
+        element = RegisteredModelElement()
         with self.assertRaises(ValidationError):
             element.id = "not-a-uuid"
 
@@ -104,7 +105,7 @@ class TestSerialization(unittest.TestCase):
         ModelRegistry.elements.update(self._saved_registry)
 
     def test_round_trip_restores_all_elements(self) -> None:
-        elements = [ModelElement(description="first"), ModelElement(description="second")]
+        elements = [RegisteredModelElement(description="first"), RegisteredModelElement(description="second")]
         blob = ModelRegistry.serialize()
         ModelRegistry.elements.clear()
 
@@ -114,18 +115,18 @@ class TestSerialization(unittest.TestCase):
             self.assertIsNot(restored, element)
             self.assertEqual(restored.description, element.description)
 
-    def test_model_element_retains_inherited_registry_operations(self) -> None:
-        element = ModelElement(description="registered model object")
-        blob = ModelElement.serialize()
+    def test_registered_model_element_retains_inherited_registry_operations(self) -> None:
+        element = RegisteredModelElement(description="registered model object")
+        blob = RegisteredModelElement.serialize()
         ModelRegistry.elements.clear()
 
-        self.assertEqual(ModelElement.deserialize(blob), 1)
+        self.assertEqual(RegisteredModelElement.deserialize(blob), 1)
         self.assertEqual(ModelRegistry.elements[element.id].description, element.description)
 
     def test_deserialize_detaches_pre_existing_instances(self) -> None:
-        original = ModelElement(description="original")
+        original = RegisteredModelElement(description="original")
         blob = ModelRegistry.serialize()
-        squatter = ModelElement(description="squatter")
+        squatter = RegisteredModelElement(description="squatter")
         ModelRegistry.elements[original.id] = squatter
 
         ModelRegistry.deserialize(blob)
@@ -136,7 +137,7 @@ class TestSerialization(unittest.TestCase):
 
     def test_deserialize_drops_elements_absent_from_the_payload(self) -> None:
         blob = ModelRegistry.serialize()
-        orphan = ModelElement()
+        orphan = RegisteredModelElement()
 
         ModelRegistry.deserialize(blob)
 
@@ -147,7 +148,7 @@ class TestSerialization(unittest.TestCase):
             ModelRegistry.deserialize(pickle.dumps({"not": "a registry"}))
 
     def test_deserialize_rejects_an_owned_model_object_as_a_registry_entry(self) -> None:
-        model_object = ModelObject()
+        model_object = ModelElement()
         payload = pickle.dumps({model_object.id: model_object})
 
         with self.assertRaises(TypeError):

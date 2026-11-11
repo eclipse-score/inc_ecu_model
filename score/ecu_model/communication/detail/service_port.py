@@ -16,11 +16,11 @@ from __future__ import annotations
 from pydantic import Field, field_validator, model_validator
 
 from score.ecu_model.communication.detail.base_port import _BasePort
-from score.ecu_model.communication.message_channel import ModelElement
+from score.ecu_model.communication.message_channel import RegisteredModelElement
 from score.ecu_model.communication.service_interface import InterfaceDefinition, ServiceInterface
 
 
-class PortDefinition(ModelElement):
+class PortDefinition(RegisteredModelElement):
     """Binding-independent declaration of a service port."""
 
     interface_design: InterfaceDefinition = Field(

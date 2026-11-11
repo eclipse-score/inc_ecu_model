@@ -14,18 +14,18 @@
 """Collect the input datatypes selected for C++ generation."""
 
 from collections.abc import Mapping
+from typing import cast
 from uuid import UUID
 
-from score.ecu_model.model import ModelElement
+from score.ecu_model.data_types.common import DataType
+from score.ecu_model.model import RegisteredModelElement
 
 
 class DatatypeCollector:
     """Pass the current pickle model's datatype entries to lowering."""
 
     @staticmethod
-    def collect(model: Mapping[str, Mapping[UUID, ModelElement]]) -> tuple[ModelElement, ...]:
+    def collect(model: Mapping[str, Mapping[UUID, RegisteredModelElement]]) -> tuple[DataType, ...]:
         """Collect datatype entries from the loaded model."""
-        # TODO: This temporarily follows the current pickle structure.
-        # Update extraction and selection once the pickle structure is finalized.
         data_types = model["data_types"]
-        return tuple(data_types.values())
+        return cast(tuple[DataType, ...], tuple(data_types.values()))

@@ -18,14 +18,13 @@ from enum import Enum, auto
 from uuid import UUID
 
 from score.ecu_model.data_types.array import ArrayDataType
-from score.ecu_model.data_types.common import DataTypeBase
+from score.ecu_model.data_types.common import DataType, DataTypeBase, DataTypeOrReference
 from score.ecu_model.data_types.enum import EnumDataType
 from score.ecu_model.data_types.identifier import Identifier, QualifiedName
 from score.ecu_model.data_types.primitives import PrimitiveDataType
 from score.ecu_model.data_types.struct import StructDataType
 from score.ecu_model.data_types.typedef import TypedefDataType
 from score.ecu_model.data_types.union import UnionDataType
-from score.ecu_model.model import ModelElement
 from score.generators.src.datatypes.array_type import build_array_header
 from score.generators.src.datatypes.cpp_model import CppHeaderModel
 from score.generators.src.datatypes.cpp_type_registry import CppTypeInfo, CppTypeRegistry
@@ -48,7 +47,7 @@ class DatatypeUtils:
 
     @staticmethod
     def build_type_registry(
-        selected_datatypes: Iterable[ModelElement | PrimitiveDataType],
+        selected_datatypes: Iterable[DataType],
         on_header_ready: Callable[[CppHeaderModel], None],
     ) -> CppTypeRegistry:
         """Register supported datatypes in dependency order, rejecting unsupported input."""
@@ -56,9 +55,13 @@ class DatatypeUtils:
         states: dict[UUID, _ProcessingState] = {}
         active_path: list[DataTypeBase] = []
 
-        def process(datatype: ModelElement | PrimitiveDataType | Identifier | QualifiedName) -> CppTypeInfo | None:
+        def require_resolved_datatype(datatype: DataTypeOrReference) -> DataType:
+            """Reject unresolved references before they enter datatype lowering."""
             if isinstance(datatype, (Identifier, QualifiedName)):
                 raise ValueError(f"Unresolved datatype reference: {datatype}")
+            return datatype
+
+        def process(datatype: DataType) -> CppTypeInfo | None:
             if isinstance(datatype, PrimitiveDataType):
                 return register_primitive(datatype, registry)
             if not isinstance(datatype, (ArrayDataType, TypedefDataType, EnumDataType, StructDataType, UnionDataType)):
@@ -83,7 +86,7 @@ class DatatypeUtils:
             active_path.append(datatype)
             try:
                 if isinstance(datatype, ArrayDataType):
-                    process(datatype.data_type)
+                    process(require_resolved_datatype(datatype.data_type))
                     if datatype.is_inline:
                         states[identity] = _ProcessingState.COMPLETE
                         return None
@@ -93,23 +96,23 @@ class DatatypeUtils:
                         raise NotImplementedError(
                             f"Inline array typedef targets are currently not supported: {datatype.fully_qualified_name}"
                         )
-                    target_info = process(datatype.data_type)
+                    target_info = process(require_resolved_datatype(datatype.data_type))
                     header = build_alias_header(datatype, target_info, registry)
                 elif isinstance(datatype, EnumDataType):
                     if datatype.extends is not None:
-                        process(datatype.extends)
+                        process(require_resolved_datatype(datatype.extends))
                     header = build_enum_header(datatype, registry)
                 elif isinstance(datatype, StructDataType):
                     if datatype.extends is not None:
-                        process(datatype.extends)
+                        process(require_resolved_datatype(datatype.extends))
                     for member in datatype.fields:
-                        process(member.data_type)
+                        process(require_resolved_datatype(member.data_type))
                     header = build_struct_header(datatype, registry)
                 else:
                     if datatype.extends is not None:
-                        process(datatype.extends)
+                        process(require_resolved_datatype(datatype.extends))
                     for member in datatype.fields:
-                        process(member.data_type)
+                        process(require_resolved_datatype(member.data_type))
                     header = build_union_header(datatype, registry)
                 on_header_ready(header)
                 states[identity] = _ProcessingState.COMPLETE
@@ -118,5 +121,5 @@ class DatatypeUtils:
                 active_path.pop()
 
         for datatype in selected_datatypes:
-            process(datatype)
+            process(require_resolved_datatype(datatype))
         return registry

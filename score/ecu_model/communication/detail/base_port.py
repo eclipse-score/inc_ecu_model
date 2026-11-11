@@ -21,10 +21,10 @@ from score.ecu_model.common.asil_level import AsilLevel
 from score.ecu_model.common.version import Version
 from score.ecu_model.communication.binding import CommunicationBinding
 from score.ecu_model.data_types.identifier import Identifier, QualifiedName
-from score.ecu_model.model import ModelElement
+from score.ecu_model.model import RegisteredModelElement
 
 
-class _BasePort(ModelElement):
+class _BasePort(RegisteredModelElement):
     """Shared metadata for activity and service communication ports."""
 
     name: Identifier = Field(description="Port identifier, unique within the owning activity")

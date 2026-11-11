@@ -23,7 +23,7 @@ from pathlib import Path
 from unittest.mock import patch
 from uuid import uuid4
 
-from score.ecu_model.model import ModelElement, ModelRegistry
+from score.ecu_model.model import ModelRegistry, RegisteredModelElement
 from score.generators.src import generator_runner
 
 
@@ -51,7 +51,7 @@ class GeneratorRunnerTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temporary_directory:
             input_path = Path(temporary_directory) / "model.pkl"
-            element = ModelElement(description="shared model element")
+            element = RegisteredModelElement(description="shared model element")
             model = {"data_types": {element.id: element}, "metadata": {"source": "merged"}}
             payload = pickle.dumps(model)
             input_path.write_bytes(payload)
@@ -153,7 +153,7 @@ class GeneratorRunnerTest(unittest.TestCase):
 
     def test_model_access_errors_are_preserved(self):
         """Model access failures reach the runner with their original exception types."""
-        for model, error_type in ((["not", "a", "model"], TypeError), ({uuid4(): ModelElement()}, KeyError)):
+        for model, error_type in ((["not", "a", "model"], TypeError), ({uuid4(): RegisteredModelElement()}, KeyError)):
             with self.subTest(model=model), tempfile.TemporaryDirectory() as temporary_directory:
                 input_path = Path(temporary_directory) / "model.pkl"
                 input_path.write_bytes(pickle.dumps(model))

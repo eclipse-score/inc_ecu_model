@@ -437,12 +437,6 @@ class FIDLInterfaceModelTest(unittest.TestCase):
             self.assertTrue(
                 {"fi_contract", "fi_constant_def", "fi_interface_extends", "fi_interface_manages"}.issubset(rules)
             )
-            self.assertTrue(
-                any(
-                    isinstance(element, DataTypeField) and element.name.as_str == "State"
-                    for element in ModelRegistry.elements.values()
-                )
-            )
         self.assertEqual([datatype.name.as_str for datatype in model.type_collections[0].datatypes], ["Value"])
         self.assertEqual([datatype.name.as_str for datatype in model.interfaces[0].datatypes], ["Payload"])
         self.assertIn(SelectableIdentifier("query"), model.interfaces[0].methods)

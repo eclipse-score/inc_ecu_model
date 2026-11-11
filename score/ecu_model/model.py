@@ -24,16 +24,16 @@ from pydantic import (
 
 class ModelRegistry:
     """
-    This class provides a registry for instances of ModelElement. All objects of type ModelElement are
+    This class provides a registry for instances of RegisteredModelElement. Registered model elements are
     automatically tracked in the registry to ensure uniqueness and to make them resolvable by their identifier for the
     whole lifetime of the process.
     Future extensions, additional post-initialization, validation, etc. actions can be implemented here.
     """
 
-    elements: ClassVar[dict[UUID, "ModelElement"]] = {}
+    elements: ClassVar[dict[UUID, "RegisteredModelElement"]] = {}
 
     @classmethod
-    def register(cls, element: "ModelElement") -> None:
+    def register(cls, element: "RegisteredModelElement") -> None:
         """
         Register a model element by its unique identifier.
 
@@ -41,11 +41,11 @@ class ModelRegistry:
             element: Model element to register.
 
         Raises:
-            TypeError: If the object is not a ModelElement.
+            TypeError: If the object is not a RegisteredModelElement.
             ValueError: If an element with the same ID already exists in the registry.
         """
-        if not isinstance(element, ModelElement):
-            raise TypeError(f"Expected instance of ModelElement, got {type(element).__name__}")
+        if not isinstance(element, RegisteredModelElement):
+            raise TypeError(f"Expected instance of RegisteredModelElement, got {type(element).__name__}")
         if element.id in ModelRegistry.elements:
             raise ValueError(f"Duplicate instance {str(element)}")
         ModelRegistry.elements[element.id] = element
@@ -53,7 +53,7 @@ class ModelRegistry:
     @classmethod
     def serialize(cls) -> bytes:
         """
-        Pickle the whole registry, i.e. every registered ModelElement.
+        Pickle the whole registry, i.e. every registered model element.
         """
         return pickle.dumps(ModelRegistry.elements, protocol=pickle.HIGHEST_PROTOCOL)
 
@@ -70,7 +70,7 @@ class ModelRegistry:
         """
         restored = pickle.loads(data)
         if not isinstance(restored, dict) or not all(
-            isinstance(key, UUID) and isinstance(value, ModelElement) for key, value in restored.items()
+            isinstance(key, UUID) and isinstance(value, RegisteredModelElement) for key, value in restored.items()
         ):
             raise TypeError("Payload does not contain a ModelRegistry")
         # Replacing the contents rather than the dict itself keeps existing references to the registry valid.
@@ -79,11 +79,11 @@ class ModelRegistry:
         return len(ModelRegistry.elements)
 
 
-class ModelObject(BaseModel):
-    """Base class providing common fields and behavior for model objects.
+class ModelElement(BaseModel):
+    """Base class providing common fields and behavior for model elements.
 
     Inheriting from this class does not automatically register instances in ModelRegistry.
-    Inherit from ModelElement when automatic registration is required.
+    Inherit from RegisteredModelElement when automatic registration is required.
     """
 
     model_config = ConfigDict(
@@ -97,8 +97,8 @@ class ModelObject(BaseModel):
         return f"{self.__class__.__name__}(id={self.id}, description={self.description})"
 
 
-class ModelElement(ModelObject, ModelRegistry):
-    """A model object automatically tracked in ModelRegistry."""
+class RegisteredModelElement(ModelElement, ModelRegistry):
+    """A model element automatically registered in ModelRegistry."""
 
     def model_post_init(self, context: Any, /) -> None:
         """Register the element after its fields have been validated."""

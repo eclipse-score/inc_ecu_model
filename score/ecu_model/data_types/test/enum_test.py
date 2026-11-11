@@ -19,7 +19,7 @@ from pydantic import ValidationError
 from score.ecu_model.data_types.common import DataTypeKind, DataTypeSource
 from score.ecu_model.data_types.enum import EnumDataType, EnumValue
 from score.ecu_model.data_types.struct import StructDataType
-from score.ecu_model.model import ModelElement, ModelObject, ModelRegistry
+from score.ecu_model.model import ModelElement, ModelRegistry, RegisteredModelElement
 
 
 class TestEnumValueRegistry(unittest.TestCase):
@@ -34,8 +34,8 @@ class TestEnumValueRegistry(unittest.TestCase):
     def test_literal_keeps_identity_and_validation_without_registration(self) -> None:
         literal = EnumValue(name="PARK", value=0, description="Parked gear")
 
-        self.assertIsInstance(literal, ModelObject)
-        self.assertNotIsInstance(literal, ModelElement)
+        self.assertIsInstance(literal, ModelElement)
+        self.assertNotIsInstance(literal, RegisteredModelElement)
         self.assertIsInstance(literal.id, UUID)
         self.assertEqual(literal.description, "Parked gear")
         self.assertNotIn(literal.id, ModelRegistry.elements)

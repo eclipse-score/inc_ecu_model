@@ -18,10 +18,10 @@ from pydantic import Field, field_validator, model_validator
 from score.ecu_model.architecture.activity import Activity
 from score.ecu_model.communication.service_port import ProvidedServicePort, RequiredServicePort
 from score.ecu_model.data_types.identifier import Identifier, QualifiedName
-from score.ecu_model.model import ModelElement
+from score.ecu_model.model import RegisteredModelElement
 
 
-class Application(ModelElement):
+class Application(RegisteredModelElement):
     """A process grouping one or more activities."""
 
     name: Identifier = Field(description="Identifier of the application, unique within the owning ECU")
