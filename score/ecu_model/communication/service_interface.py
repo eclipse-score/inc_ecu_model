@@ -20,14 +20,14 @@ from score.ecu_model.data_types.common import DataTypeBase, DataTypeOrReference,
 from score.ecu_model.data_types.composite import DataTypeField
 from score.ecu_model.data_types.enum import EnumDataType
 from score.ecu_model.data_types.identifier import Identifier, QualifiedName, SelectableIdentifier
-from score.ecu_model.model import ModelElement
+from score.ecu_model.model import RegisteredModelElement
 
 _DeploymentPropertyMap = (
     dict[str, object] | dict[Identifier, dict[str, object]] | dict[SelectableIdentifier, dict[str, object]]
 )
 
 
-class Broadcast(ModelElement):
+class Broadcast(RegisteredModelElement):
     """Named service broadcast / event carrying zero or more output data types."""
 
     name: SelectableIdentifier
@@ -35,7 +35,7 @@ class Broadcast(ModelElement):
     selective: bool = Field(default=False, description="Indicates if the broadcast targets a subset of clients")
 
 
-class Attribute(ModelElement):
+class Attribute(RegisteredModelElement):
     """Named service attribute field with access properties."""
 
     name: Identifier
@@ -45,7 +45,7 @@ class Attribute(ModelElement):
     subscribable: bool = Field(default=True, description="Indicates if the attribute can be subscribed to")
 
 
-class Method(ModelElement):
+class Method(RegisteredModelElement):
     """Named service method with input, output, and error definitions."""
 
     name: SelectableIdentifier
@@ -64,7 +64,7 @@ class Method(ModelElement):
     )
 
 
-class InterfaceDefinition(ModelElement):
+class InterfaceDefinition(RegisteredModelElement):
     """Reusable design-time declaration of an interface."""
 
     name: Identifier
@@ -105,7 +105,7 @@ class InterfaceDefinition(ModelElement):
         return QualifiedName((*self.namespace.names, self.name)).as_str
 
 
-class ServiceInterface(ModelElement):
+class ServiceInterface(RegisteredModelElement):
     """Concrete deployment of an InterfaceDefinition."""
 
     name: Identifier

@@ -186,6 +186,8 @@ class FIDLDatatypeTransformerTest(unittest.TestCase):
         self.assertIsInstance(typedef, TypedefDataType)
         self.assertIs(typedef.data_type, PrimitiveDataType.UINT32)
         self.assertIsInstance(enum, EnumDataType)
+        self.assertEqual(enum.size, 8)
+        self.assertFalse(enum.signed)
         self.assertEqual(
             [value.value for value in enum.values],
             [0, 5, 6, 16, 17, -2],

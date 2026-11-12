@@ -24,21 +24,21 @@ Inheritance (`<|--`) and references between the documented types; members are om
 
 ```mermaid
 classDiagram
-    ModelElement <|-- Activity
-    ModelElement <|-- Application
-    ModelElement <|-- ChainNode
-    ModelElement <|-- Chain
-    ModelElement <|-- Ecu
-    ModelElement <|-- CommunicationBinding
-    ModelElement <|-- PortDefinition
-    ModelElement <|-- MessageChannel
-    ModelElement <|-- Broadcast
-    ModelElement <|-- Attribute
-    ModelElement <|-- Method
-    ModelElement <|-- InterfaceDefinition
-    ModelElement <|-- ServiceInterface
+    RegisteredModelElement <|-- Activity
+    RegisteredModelElement <|-- Application
+    RegisteredModelElement <|-- ChainNode
+    RegisteredModelElement <|-- Chain
+    RegisteredModelElement <|-- Ecu
+    RegisteredModelElement <|-- CommunicationBinding
+    RegisteredModelElement <|-- PortDefinition
+    RegisteredModelElement <|-- MessageChannel
+    RegisteredModelElement <|-- Broadcast
+    RegisteredModelElement <|-- Attribute
+    RegisteredModelElement <|-- Method
+    RegisteredModelElement <|-- InterfaceDefinition
+    RegisteredModelElement <|-- ServiceInterface
     DataTypeBase <|-- ArrayDataType
-    ModelElement <|-- DataTypeBase
+    RegisteredModelElement <|-- DataTypeBase
     ModelElement <|-- DataTypeField
     DataTypeBase <|-- CompositeDataType
     ModelElement <|-- EnumValue
@@ -48,7 +48,8 @@ classDiagram
     CompositeDataType <|-- StructDataType
     DataTypeBase <|-- TypedefDataType
     CompositeDataType <|-- UnionDataType
-    ModelRegistry <|-- ModelElement
+    ModelElement <|-- RegisteredModelElement
+    ModelRegistry <|-- RegisteredModelElement
     Activity --> Identifier : name
     Activity --> QualifiedName : namespace
     Activity --> AsilLevel : asil
@@ -136,7 +137,7 @@ classDiagram
 
 ### `Activity`
 
-Inherits from [`ModelElement`](#modelelement).
+Inherits from [`RegisteredModelElement`](#registeredmodelelement).
 
 Executable unit in regards to scheduling with typed input and output ports.
 
@@ -161,7 +162,7 @@ Return the dot-separated activity name.
 
 ### `Application`
 
-Inherits from [`ModelElement`](#modelelement).
+Inherits from [`RegisteredModelElement`](#registeredmodelelement).
 
 A process grouping one or more activities.
 
@@ -193,7 +194,7 @@ Return the dot-separated application name.
 
 ### `ChainNode`
 
-Inherits from [`ModelElement`](#modelelement).
+Inherits from [`RegisteredModelElement`](#registeredmodelelement).
 
 One activity in a chain together with the activities that trigger it.
 
@@ -206,7 +207,7 @@ One activity in a chain together with the activities that trigger it.
 
 ### `Chain`
 
-Inherits from [`ModelElement`](#modelelement).
+Inherits from [`RegisteredModelElement`](#registeredmodelelement).
 
 Process-overarching schedule, modelled as a directed acyclic graph of activity trigger dependencies.
 
@@ -237,7 +238,7 @@ Return the dot-separated chain name.
 
 ### `Ecu`
 
-Inherits from [`ModelElement`](#modelelement).
+Inherits from [`RegisteredModelElement`](#registeredmodelelement).
 
 A deployment target grouping the applications that run on it.
 
@@ -357,7 +358,7 @@ Discriminator values for binding specific bus protocols
 
 ### `CommunicationBinding`
 
-Inherits from [`ModelElement`](#modelelement).
+Inherits from [`RegisteredModelElement`](#registeredmodelelement).
 
 Generic core communication binding for all supported platform protocols.
 
@@ -372,7 +373,7 @@ Generic core communication binding for all supported platform protocols.
 
 ### `PortDefinition`
 
-Inherits from [`ModelElement`](#modelelement).
+Inherits from [`RegisteredModelElement`](#registeredmodelelement).
 
 Binding-independent declaration of a service port.
 
@@ -386,7 +387,7 @@ Binding-independent declaration of a service port.
 
 ### `MessageChannel`
 
-Inherits from [`ModelElement`](#modelelement).
+Inherits from [`RegisteredModelElement`](#registeredmodelelement).
 
 Represents a communication channel for message-oriented ports.
 
@@ -429,7 +430,7 @@ A message port consumed by an application or activity.
 
 ### `Broadcast`
 
-Inherits from [`ModelElement`](#modelelement).
+Inherits from [`RegisteredModelElement`](#registeredmodelelement).
 
 Named service broadcast / event carrying zero or more output data types.
 
@@ -443,7 +444,7 @@ Named service broadcast / event carrying zero or more output data types.
 
 ### `Attribute`
 
-Inherits from [`ModelElement`](#modelelement).
+Inherits from [`RegisteredModelElement`](#registeredmodelelement).
 
 Named service attribute field with access properties.
 
@@ -459,7 +460,7 @@ Named service attribute field with access properties.
 
 ### `Method`
 
-Inherits from [`ModelElement`](#modelelement).
+Inherits from [`RegisteredModelElement`](#registeredmodelelement).
 
 Named service method with input, output, and error definitions.
 
@@ -476,7 +477,7 @@ Named service method with input, output, and error definitions.
 
 ### `InterfaceDefinition`
 
-Inherits from [`ModelElement`](#modelelement).
+Inherits from [`RegisteredModelElement`](#registeredmodelelement).
 
 Reusable design-time declaration of an interface.
 
@@ -507,7 +508,7 @@ Return the dot-separated interface name.
 
 ### `ServiceInterface`
 
-Inherits from [`ModelElement`](#modelelement).
+Inherits from [`RegisteredModelElement`](#registeredmodelelement).
 
 Concrete deployment of an InterfaceDefinition.
 
@@ -628,7 +629,7 @@ Return the canonical data type source name.
 
 ### `DataTypeBase`
 
-Inherits from [`ModelElement`](#modelelement).
+Inherits from [`RegisteredModelElement`](#registeredmodelelement).
 
 Shared metadata for data types that are declared in a source language.
 
@@ -749,7 +750,7 @@ A declared enum data type with named literals.
 | `extends` | [`EnumDataType`](#enumdatatype) \| [`Identifier`](#identifier) \| [`QualifiedName`](#qualifiedname) \| None | `None` | Optional enum definition extended by this enum; may temporarily be an unresolved reference during model resolution |
 | `size` | `int` | `32` | Bit width used for enum storage |
 | `signed` | `bool` | `False` | Whether enum storage is signed |
-| `allow_value_aliases` | `bool` | `False` | Whether multiple enum literals may declare the same numeric value |
+| `allow_value_aliases` | `bool` | `True` | Whether multiple enum literals may declare the same numeric value |
 | `values` | tuple[[`EnumValue`](#enumvalue), ...] | `tuple()` | Named enum literals, not changeable after creation |
 
 **Validators**
@@ -959,37 +960,33 @@ A declared union data type whose fields are mutually exclusive,  e.g. a Franca u
 
 ### `ModelRegistry`
 
-Inherits from `BaseModel`.
-
-This class provides a registry for instances of ModelElement. All objects of type ModelElement are
+This class provides a registry for instances of RegisteredModelElement. Registered model elements are
 automatically tracked in the registry to ensure uniqueness and to make them resolvable by their identifier for the
 whole lifetime of the process.
 Future extensions, additional post-initialization, validation, etc. actions can be implemented here.
 
-#### `model_post_init(self, context: Any, /) -> None`
+#### `register(cls, element: 'RegisteredModelElement') -> None`
 
-_method_
+_classmethod_
 
-Post-initialization hook for the model. Overwrite of BaseModel.model_post_init() method.
-
-This method is called after the model is instantiated and all field validators are applied.
+Register a model element by its unique identifier.
 
 
 **Args:**
 
-- context: Additional context for post-initialization actions.
+- element: Model element to register.
 
 
 **Raises:**
 
-- TypeError: If the instance is neither the root ModelRegistry nor a ModelElement.
-- ValueError: If an instance with the same ID already exists in the registry.
+- TypeError: If the object is not a RegisteredModelElement.
+- ValueError: If an element with the same ID already exists in the registry.
 
 #### `serialize(cls) -> bytes`
 
 _classmethod_
 
-Pickle the whole registry, i.e. every registered ModelElement.
+Pickle the whole registry, i.e. every registered model element.
 
 #### `deserialize(cls, data: bytes) -> int`
 
@@ -1009,9 +1006,12 @@ Replace the registry with a previously serialized one and return the number of r
 
 ### `ModelElement`
 
-Inherits from [`ModelRegistry`](#modelregistry).
+Inherits from `BaseModel`.
 
-Base class to be used by all objects tracked in ModelRegistry.elements.
+Base class providing common fields and behavior for model elements.
+
+Inheriting from this class does not automatically register instances in ModelRegistry.
+Inherit from RegisteredModelElement when automatic registration is required.
 
 **Fields**
 
@@ -1019,3 +1019,15 @@ Base class to be used by all objects tracked in ModelRegistry.elements.
 | --- | --- | --- | --- |
 | `id` | `UUID` | `uuid4()` | Unique identifier of the model element |
 | `description` | `str` | `''` | Human-readable description of the model element |
+
+### `RegisteredModelElement`
+
+Inherits from [`ModelElement`](#modelelement), [`ModelRegistry`](#modelregistry).
+
+A model element automatically registered in ModelRegistry.
+
+#### `model_post_init(self, context: Any, /) -> None`
+
+_method_
+
+Register the element after its fields have been validated.

@@ -14,9 +14,11 @@
 """Apply resolved FDEPL datatype deployment properties to FIDL models."""
 
 import logging
+from typing import cast
 
 from score.ecu_model.data_types.common import DataTypeBase
 from score.ecu_model.data_types.composite import DataTypeField
+from score.ecu_model.data_types.enum import EnumDataType
 from score.ecu_model.data_types.identifier import Identifier
 from score.parsers.franca_parser.model.fdepl.definition import (
     DeploymentElement,
@@ -41,6 +43,23 @@ from score.parsers.franca_parser.model.fdepl.type_collection_deployment import (
 class DeploymentPropertyApplier:
     """Apply legacy-compatible FDEPL properties to resolved FIDL datatype models."""
 
+    _ENUM_BACKING_TYPES = {
+        "UInt8": (8, False),
+        "UInt16": (16, False),
+        "UInt32": (32, False),
+        "UInt64": (64, False),
+        "Int8": (8, True),
+        "Int16": (16, True),
+        "Int32": (32, True),
+        "Int64": (64, True),
+    }
+    _SOMEIP_ENUM_WIDTHS = {
+        1: (8, False),
+        2: (16, False),
+        4: (32, False),
+    }
+    _DEFAULT_SOMEIP_ENUM_WIDTH = 1
+    _FALLBACK_ENUM_BACKING_TYPE = "UInt64"
     _HOSTS_BY_DEPLOYMENT_TYPE = {
         TypedefDeployment: {"typedefs", "strings"},
         ArrayDeployment: {"arrays", "strings"},
@@ -84,9 +103,30 @@ class DeploymentPropertyApplier:
                     self._FIELD_HOSTS,
                 )
         if isinstance(deployment, EnumerationDeployment):
+            self._apply_enum_backing_type(cast(EnumDataType, target))
             # TODO: Legacy DeploymentRegistry does not register enumerator deployments.
             # Preserve that behavior until enum-value deployment storage is specified.
             return
+
+    @classmethod
+    def _apply_enum_backing_type(cls, target: EnumDataType) -> None:
+        """Copy the deployed enum backing type into the normalized enum model fields."""
+        backing_type = target.deployment_properties.get("EnumBackingType")
+        if backing_type is not None:
+            storage = cls._ENUM_BACKING_TYPES.get(backing_type) if isinstance(backing_type, str) else None
+            if storage is None:
+                raise ValueError(f"Unsupported EnumBackingType value {backing_type!r}")
+        else:
+            someip_width = target.deployment_properties.get("SomeIpEnumWidth", cls._DEFAULT_SOMEIP_ENUM_WIDTH)
+            if not isinstance(someip_width, int) or isinstance(someip_width, bool):
+                raise ValueError(
+                    f"Unsupported SomeIpEnumWidth value {someip_width!r}: "
+                    f"expected int, got {type(someip_width).__name__}"
+                )
+            storage = cls._SOMEIP_ENUM_WIDTHS.get(
+                someip_width, cls._ENUM_BACKING_TYPES[cls._FALLBACK_ENUM_BACKING_TYPE]
+            )
+        target.size, target.signed = storage
 
     def _apply_parameters(
         self,

@@ -16,7 +16,7 @@
 from pathlib import Path
 
 from score.generators.src.common.template_renderer import TemplateRenderer
-from score.generators.src.datatypes.cpp_model import CppHeaderModel
+from score.generators.src.datatypes.cpp_model import CppAlias, CppEnum, CppHeaderModel, CppVariant
 
 
 class HeaderRenderer:
@@ -28,4 +28,12 @@ class HeaderRenderer:
 
     def render(self, header: CppHeaderModel) -> str:
         """Render one completed header without writing it to disk."""
-        return self._renderer.render("datatype.h.j2", {"header": header})
+        return self._renderer.render(
+            "datatype.h.j2",
+            {
+                "header": header,
+                "is_alias": isinstance(header.declaration, CppAlias),
+                "is_enum": isinstance(header.declaration, CppEnum),
+                "is_variant": isinstance(header.declaration, CppVariant),
+            },
+        )

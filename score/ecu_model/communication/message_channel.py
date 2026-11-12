@@ -17,10 +17,10 @@ from pydantic import Field
 
 from score.ecu_model.data_types.common import DataTypeOrReference
 from score.ecu_model.data_types.identifier import Identifier, QualifiedName
-from score.ecu_model.model import ModelElement
+from score.ecu_model.model import RegisteredModelElement
 
 
-class MessageChannel(ModelElement):
+class MessageChannel(RegisteredModelElement):
     """Represents a communication channel for message-oriented ports."""
 
     name: Identifier = Field(description="Identifier of the message channel")

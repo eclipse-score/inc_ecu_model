@@ -20,14 +20,14 @@ from pathlib import Path
 from typing import Protocol
 from uuid import UUID
 
-from score.ecu_model.model import ModelElement
+from score.ecu_model.model import RegisteredModelElement
 from score.generators.src.datatypes.datatype_generator import DatatypeGenerator
 
 
 class Generator(Protocol):
     """Common interface for generators sharing an input model and output root."""
 
-    def generate(self, model: Mapping[str, Mapping[UUID, ModelElement]], output_dir: Path) -> None:
+    def generate(self, model: Mapping[str, Mapping[UUID, RegisteredModelElement]], output_dir: Path) -> None:
         """Write generated artifacts below the supplied output root."""
         ...  # pragma: no cover
 

@@ -20,10 +20,10 @@ from pydantic import Field, field_validator, model_validator
 from score.ecu_model.architecture.application import Application
 from score.ecu_model.architecture.chain import Chain
 from score.ecu_model.data_types.identifier import Identifier, QualifiedName
-from score.ecu_model.model import ModelElement
+from score.ecu_model.model import RegisteredModelElement
 
 
-class Ecu(ModelElement):
+class Ecu(RegisteredModelElement):
     """A deployment target grouping the applications that run on it."""
 
     name: Identifier = Field(description="Identifier of the ECU, unique within the owning system")

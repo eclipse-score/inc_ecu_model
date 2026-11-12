@@ -29,7 +29,26 @@
 namespace {{ namespace }} {
 {% endfor %}
 
+{% if is_alias %}
 using {{ header.declaration.name }} = {{ header.declaration.cpp_type }};
+{% elif is_variant %}
+using {{ header.declaration.name }} = std::variant<{{ header.declaration.alternatives | join(", ") }}>;
+{% elif is_enum %}
+enum class {{ header.declaration.name }} : {{ header.declaration.underlying_type }} {
+{% for value in header.declaration.values %}
+{{ "    " }}{{ value.name }} = {{ value.value }}{% if not loop.last %},{% endif %}{{ "\n" }}{% endfor %}
+};
+{% else %}
+struct {{ header.declaration.name }} {
+{% for member in header.declaration.fields if member.generated_type_alias %}
+{{ "    " }}using {{ member.generated_type_alias }} = {{ member.cpp_type }};
+{% endfor %}
+{% if header.declaration.fields | selectattr("generated_type_alias") | list %}{{ "\n" }}{% endif %}
+{% for member in header.declaration.fields %}
+{{ "    " }}{{ member.generated_type_alias or member.cpp_type }} {{ member.name }};
+{% endfor %}
+};
+{% endif %}
 {% for namespace in header.namespaces | reverse %}
 }  // namespace {{ namespace }}
 {% endfor %}

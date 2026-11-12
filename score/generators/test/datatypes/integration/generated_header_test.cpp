@@ -12,19 +12,37 @@
  *******************************************************************************/
 
 #include "example/Types/Bool.h"
+#include "example/Types/ArrayChoice.h"
 #include "example/Types/Count.h"
+#include "example/Types/CurrentState.h"
 #include "example/Types/Double.h"
 #include "example/Types/Float.h"
+#include "example/Types/Grid.h"
 #include "example/Types/Int16.h"
+#include "example/Types/Int16Mode.h"
 #include "example/Types/Int32.h"
+#include "example/Types/Int32Mode.h"
 #include "example/Types/Int64.h"
+#include "example/Types/Int64Mode.h"
 #include "example/Types/Int8.h"
+#include "example/Types/Int8Mode.h"
+#include "example/Types/Packet.h"
+#include "example/Types/PublicChoice.h"
+#include "example/Types/PublicInheritedChoice.h"
 #include "example/Types/PublicCount.h"
+#include "example/Types/PublicMode.h"
+#include "example/Types/PublicState.h"
+#include "example/Types/PublicRow.h"
+#include "example/Types/ZeroBounds.h"
 #include "example/Types/Text.h"
 #include "example/Types/UInt16.h"
+#include "example/Types/UInt16Mode.h"
 #include "example/Types/UInt32.h"
+#include "example/Types/UInt32Mode.h"
 #include "example/Types/UInt64.h"
+#include "example/Types/UInt64Mode.h"
 #include "example/Types/UInt8.h"
+#include "example/Types/UInt8Mode.h"
 
 #include <type_traits>
 
@@ -42,11 +60,146 @@ static_assert(std::is_same_v<example::Types::UInt32, std::uint32_t>);
 static_assert(std::is_same_v<example::Types::UInt64, std::uint64_t>);
 static_assert(std::is_same_v<example::Types::Count, example::Types::UInt16>);
 static_assert(std::is_same_v<example::Types::PublicCount, example::Types::Count>);
+static_assert(std::is_same_v<std::underlying_type_t<example::Types::Int8Mode>, std::int8_t>);
+static_assert(std::is_same_v<std::underlying_type_t<example::Types::Int16Mode>, std::int16_t>);
+static_assert(std::is_same_v<std::underlying_type_t<example::Types::Int32Mode>, std::int32_t>);
+static_assert(std::is_same_v<std::underlying_type_t<example::Types::Int64Mode>, std::int64_t>);
+static_assert(std::is_same_v<std::underlying_type_t<example::Types::UInt8Mode>, std::uint8_t>);
+static_assert(std::is_same_v<std::underlying_type_t<example::Types::UInt16Mode>, std::uint16_t>);
+static_assert(std::is_same_v<std::underlying_type_t<example::Types::UInt32Mode>, std::uint32_t>);
+static_assert(std::is_same_v<std::underlying_type_t<example::Types::UInt64Mode>, std::uint64_t>);
+static_assert(std::is_same_v<example::Types::PublicMode, example::Types::Int8Mode>);
+static_assert(!std::is_convertible_v<example::Types::PublicMode, std::int8_t>);
+static_assert(std::is_aggregate_v<example::Types::State>);
+static_assert(std::is_same_v<example::Types::PublicState, example::Types::State>);
+static_assert(std::is_same_v<decltype(example::Types::State::enabled), bool>);
+static_assert(std::is_same_v<decltype(example::Types::State::text), std::string>);
+static_assert(std::is_same_v<decltype(example::Types::State::count), example::Types::Count>);
+static_assert(std::is_same_v<decltype(example::Types::State::mode), example::Types::Int8Mode>);
+static_assert(std::is_same_v<decltype(example::Types::State::version), example::Shared::Version>);
+static_assert(std::is_same_v<example::Types::State::version_generated_type, example::Shared::Version>);
+static_assert(std::is_aggregate_v<example::Types::CurrentState>);
+static_assert(!std::is_base_of_v<example::Types::State, example::Types::CurrentState>);
+static_assert(std::is_same_v<decltype(example::Types::CurrentState::sequence), std::uint32_t>);
+static_assert(std::is_same_v<decltype(example::Types::CurrentState::version), example::Shared::Version>);
+static_assert(std::is_same_v<example::Types::CurrentState::count_generated_type, example::Types::Count>);
+static_assert(std::is_same_v<example::Types::CurrentState::mode_generated_type, example::Types::Int8Mode>);
+static_assert(std::is_same_v<example::Types::PublicChoice, example::Types::Choice>);
+static_assert(std::variant_size_v<example::Types::Choice> == 5);
+static_assert(std::is_same_v<std::variant_alternative_t<0, example::Types::Choice>, example::Types::Count>);
+static_assert(std::is_same_v<std::variant_alternative_t<1, example::Types::Choice>, example::Types::Count>);
+static_assert(std::is_same_v<std::variant_alternative_t<2, example::Types::Choice>, example::Types::Int8Mode>);
+static_assert(std::is_same_v<std::variant_alternative_t<3, example::Types::Choice>, example::Types::State>);
+static_assert(std::is_same_v<std::variant_alternative_t<4, example::Types::Choice>, std::string>);
+static_assert(std::is_same_v<std::variant_alternative_t<0, example::Shared::Payload>, bool>);
+static_assert(std::is_same_v<std::variant_alternative_t<1, example::Shared::Payload>, example::Types::Choice>);
+static_assert(std::is_same_v<example::Types::Packet::payload_generated_type, example::Shared::Payload>);
+static_assert(std::is_same_v<example::Types::PublicInheritedChoice,
+                             std::variant<bool, double, example::Types::Count, example::Types::Count,
+                                          example::Types::Int8Mode, example::Types::State, std::string>>);
+static_assert(std::is_same_v<example::Types::Packet::inherited_generated_type, example::Types::PublicInheritedChoice>);
+static_assert(std::is_same_v<example::Types::PublicRow, std::array<std::uint16_t, 7>>);
+static_assert(std::is_same_v<example::Types::Grid::rows_generated_type, std::array<example::Shared::Row, 5>>);
+static_assert(std::is_same_v<example::Types::Grid::row_generated_type, example::Shared::Row>);
+static_assert(std::is_same_v<example::Types::Grid::fixed_generated_type, std::array<std::uint16_t, 3>>);
+static_assert(std::is_same_v<example::Types::Samples, std::vector<std::uint16_t>>);
+static_assert(std::is_same_v<example::Types::ZeroBounds, std::vector<bool>>);
+static_assert(std::is_same_v<example::Types::States, std::array<example::Types::State, 3>>);
+static_assert(std::is_same_v<example::Types::ArrayChoice,
+                             std::variant<example::Types::Samples, std::vector<std::uint16_t>,
+                                          std::array<std::uint16_t, 3>, example::Types::States>>);
 
 int main()
 {
+    example::Types::Grid grid{};
+    if (grid.rows.size() != 5 || grid.rows[0].size() != 7 || grid.row.size() != 7 ||
+        grid.fixed.size() != 3 || !grid.samples.empty())
+    {
+        return 1;
+    }
+    grid.rows[4][6] = 42;
+    grid.samples.resize(8, 7);
+    const example::Types::Grid copied_grid = grid;
+    if (copied_grid.rows[4][6] != 42 || copied_grid.samples.size() != 8 || copied_grid.samples[7] != 7)
+    {
+        return 1;
+    }
+    example::Types::ZeroBounds zero_bounds;
+    zero_bounds.resize(2, true);
+    if (zero_bounds.size() != 2 || !zero_bounds[1])
+    {
+        return 1;
+    }
+    example::Types::ArrayChoice array_choice;
+    if (array_choice.index() != 0 || !std::get<0>(array_choice).empty())
+    {
+        return 1;
+    }
+    array_choice.emplace<1>(10, 9);
+    if (std::get<1>(array_choice).size() != 10)
+    {
+        return 1;
+    }
+    array_choice.emplace<2>();
+    if (std::get<2>(array_choice).size() != 3)
+    {
+        return 1;
+    }
+    array_choice.emplace<3>();
+    if (std::get<3>(array_choice).size() != 3)
+    {
+        return 1;
+    }
     example::Types::Bool enabled{true};
     example::Types::PublicCount count{7};
     example::Types::Text text{"ready"};
-    return enabled && count == 7 && text == "ready" ? 0 : 1;
+    const auto mode = example::Types::PublicMode::Maximum;
+    const auto signed_mode = example::Types::Int8Mode::Minimum;
+    const auto wide_mode = example::Types::UInt16Mode::Maximum;
+    const example::Types::PublicState state{enabled, text, count, mode, example::Shared::Version{1, 2}};
+    const example::Types::CurrentState current{9, enabled, text, count, mode, example::Shared::Version{3, 4}};
+    example::Types::PublicChoice choice;
+    if (choice.index() != 0 || std::get<0>(choice) != 0)
+    {
+        return 1;
+    }
+    choice.emplace<1>(count);
+    if (choice.index() != 1 || std::get<1>(choice) != count)
+    {
+        return 1;
+    }
+    choice = mode;
+    if (!std::holds_alternative<example::Types::Int8Mode>(choice) ||
+        std::get<example::Types::Int8Mode>(choice) != mode)
+    {
+        return 1;
+    }
+    choice = state;
+    if (std::get<example::Types::State>(choice).version.minor != 2)
+    {
+        return 1;
+    }
+    choice = text;
+    example::Types::PublicInheritedChoice inherited;
+    if (inherited.index() != 0 || std::get<0>(inherited))
+    {
+        return 1;
+    }
+    inherited.emplace<3>(count);
+    if (inherited.index() != 3 || std::get<3>(inherited) != count)
+    {
+        return 1;
+    }
+    inherited = state;
+    const example::Types::Packet packet{example::Shared::Payload{choice}, inherited};
+    return enabled && count == 7 && text == "ready" && static_cast<std::int8_t>(mode) == 1 &&
+                   static_cast<std::int8_t>(signed_mode) == -1 && static_cast<std::uint16_t>(wide_mode) == 1 &&
+                   state.enabled && state.text == "ready" && state.count == 7 && state.mode == mode &&
+                   state.version.major == 1 && state.version.minor == 2 && current.sequence == 9 &&
+                   current.enabled && current.text == "ready" && current.count == 7 && current.mode == mode &&
+                   current.version.major == 3 && current.version.minor == 4 &&
+                   std::get<std::string>(std::get<example::Types::Choice>(packet.payload)) == text &&
+                   std::get<example::Types::State>(packet.inherited).version.minor == 2
+               ? 0
+               : 1;
 }

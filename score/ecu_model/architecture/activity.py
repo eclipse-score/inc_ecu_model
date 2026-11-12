@@ -19,10 +19,10 @@ from score.ecu_model.common.asil_level import AsilLevel
 from score.ecu_model.common.version import Version
 from score.ecu_model.communication.message_port import ProvidedMessagePort, RequiredMessagePort
 from score.ecu_model.data_types.identifier import Identifier, QualifiedName
-from score.ecu_model.model import ModelElement
+from score.ecu_model.model import RegisteredModelElement
 
 
-class Activity(ModelElement):
+class Activity(RegisteredModelElement):
     """Executable unit in regards to scheduling with typed input and output ports."""
 
     name: Identifier = Field(description="Identifier of the activity, unique within the owning application")

@@ -22,42 +22,38 @@ from pydantic import (
 )
 
 
-class ModelRegistry(BaseModel):
+class ModelRegistry:
     """
-    This class provides a registry for instances of ModelElement. All objects of type ModelElement are
+    This class provides a registry for instances of RegisteredModelElement. Registered model elements are
     automatically tracked in the registry to ensure uniqueness and to make them resolvable by their identifier for the
     whole lifetime of the process.
     Future extensions, additional post-initialization, validation, etc. actions can be implemented here.
     """
 
-    elements: ClassVar[dict[UUID, "ModelElement"]] = {}
+    elements: ClassVar[dict[UUID, "RegisteredModelElement"]] = {}
 
-    def model_post_init(self, context: Any, /) -> None:
+    @classmethod
+    def register(cls, element: "RegisteredModelElement") -> None:
         """
-        Post-initialization hook for the model. Overwrite of BaseModel.model_post_init() method.
-
-        This method is called after the model is instantiated and all field validators are applied.
+        Register a model element by its unique identifier.
 
         Args:
-            context: Additional context for post-initialization actions.
+            element: Model element to register.
 
         Raises:
-            TypeError: If the instance is neither the root ModelRegistry nor a ModelElement.
-            ValueError: If an instance with the same ID already exists in the registry.
+            TypeError: If the object is not a RegisteredModelElement.
+            ValueError: If an element with the same ID already exists in the registry.
         """
-        if type(self) is ModelRegistry:
-            # The registry root itself is not tracked in the registry.
-            return
-        if not isinstance(self, ModelElement):
-            raise TypeError(f"Expected instance of ModelElement, got {type(self).__name__}")
-        if self.id in ModelRegistry.elements:
-            raise ValueError(f"Duplicate instance {str(self)}")
-        ModelRegistry.elements[self.id] = self
+        if not isinstance(element, RegisteredModelElement):
+            raise TypeError(f"Expected instance of RegisteredModelElement, got {type(element).__name__}")
+        if element.id in ModelRegistry.elements:
+            raise ValueError(f"Duplicate instance {str(element)}")
+        ModelRegistry.elements[element.id] = element
 
     @classmethod
     def serialize(cls) -> bytes:
         """
-        Pickle the whole registry, i.e. every registered ModelElement.
+        Pickle the whole registry, i.e. every registered model element.
         """
         return pickle.dumps(ModelRegistry.elements, protocol=pickle.HIGHEST_PROTOCOL)
 
@@ -74,7 +70,7 @@ class ModelRegistry(BaseModel):
         """
         restored = pickle.loads(data)
         if not isinstance(restored, dict) or not all(
-            isinstance(key, UUID) and isinstance(value, ModelElement) for key, value in restored.items()
+            isinstance(key, UUID) and isinstance(value, RegisteredModelElement) for key, value in restored.items()
         ):
             raise TypeError("Payload does not contain a ModelRegistry")
         # Replacing the contents rather than the dict itself keeps existing references to the registry valid.
@@ -83,25 +79,28 @@ class ModelRegistry(BaseModel):
         return len(ModelRegistry.elements)
 
 
-class ModelElement(ModelRegistry):
-    """
-    Base class to be used by all objects tracked in ModelRegistry.elements.
+class ModelElement(BaseModel):
+    """Base class providing common fields and behavior for model elements.
+
+    Inheriting from this class does not automatically register instances in ModelRegistry.
+    Inherit from RegisteredModelElement when automatic registration is required.
     """
 
-    """
-    Basic configuration for the model element.
-    Set strict validation for the model fields, so that the model is re-validated whenever assigned.
-    See https://pydantic.dev/docs/validation/dev/api/pydantic/config/ for more details.
-    """
     model_config = ConfigDict(
         validate_assignment=True,
     )
 
-    """
-    Properties of the model element.
-    """
     id: UUID = Field(default_factory=uuid4, description="Unique identifier of the model element")
     description: str = Field(default="", description="Human-readable description of the model element")
 
     def __str__(self) -> str:
         return f"{self.__class__.__name__}(id={self.id}, description={self.description})"
+
+
+class RegisteredModelElement(ModelElement, ModelRegistry):
+    """A model element automatically registered in ModelRegistry."""
+
+    def model_post_init(self, context: Any, /) -> None:
+        """Register the element after its fields have been validated."""
+        super().model_post_init(context)
+        ModelRegistry.register(self)

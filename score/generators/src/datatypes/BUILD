@@ -23,22 +23,32 @@ py_library(
     name = "cpp_type_registry",
     srcs = ["cpp_type_registry.py"],
     visibility = ["//score/generators:__subpackages__"],
-    deps = ["//score/ecu_model/data_types"],
+    deps = [
+        ":cpp_model",
+        "//score/ecu_model/data_types",
+    ],
 )
 
 py_library(
     name = "datatype_collector",
     srcs = ["datatype_collector.py"],
     visibility = ["//score/generators:__subpackages__"],
-    deps = ["//score/ecu_model"],
+    deps = [
+        "//score/ecu_model",
+        "//score/ecu_model/data_types",
+    ],
 )
 
 py_library(
     name = "datatype_utils",
     srcs = [
+        "array_type.py",
         "datatype_utils.py",
+        "enum_type.py",
         "primitive_type.py",
+        "struct_type.py",
         "typedef_type.py",
+        "union_type.py",
     ],
     visibility = ["//score/generators:__subpackages__"],
     deps = [

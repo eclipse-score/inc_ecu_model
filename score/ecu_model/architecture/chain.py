@@ -21,10 +21,10 @@ from pydantic import Field, field_validator, model_validator
 from score.ecu_model.architecture.activity import Activity
 from score.ecu_model.architecture.application import Application
 from score.ecu_model.data_types.identifier import Identifier, QualifiedName
-from score.ecu_model.model import ModelElement
+from score.ecu_model.model import RegisteredModelElement
 
 
-class ChainNode(ModelElement):
+class ChainNode(RegisteredModelElement):
     """One activity in a chain together with the activities that trigger it."""
 
     activity: Activity = Field(description="Activity scheduled by this node")
@@ -34,7 +34,7 @@ class ChainNode(ModelElement):
     )
 
 
-class Chain(ModelElement):
+class Chain(RegisteredModelElement):
     """Process-overarching schedule, modelled as a directed acyclic graph of activity trigger dependencies."""
 
     name: Identifier = Field(description="Identifier of the chain, unique within the owning ECU")

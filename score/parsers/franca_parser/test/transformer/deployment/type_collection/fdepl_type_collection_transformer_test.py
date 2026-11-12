@@ -17,11 +17,14 @@ import unittest
 from pathlib import Path
 
 from score.ecu_model.data_types.array import ArrayDataType
+from score.ecu_model.data_types.common import DataTypeKind, DataTypeSource
 from score.ecu_model.data_types.enum import EnumDataType, EnumValue
+from score.ecu_model.data_types.identifier import Identifier
 from score.ecu_model.data_types.map import MapDataType
 from score.ecu_model.data_types.struct import StructDataType
 from score.ecu_model.data_types.typedef import TypedefDataType
 from score.ecu_model.data_types.union import UnionDataType
+from score.parsers.franca_parser.model.fdepl.fdepl_file import FDEPLFileModel
 from score.parsers.franca_parser.model.fdepl.type_collection_deployment import (
     ArrayDeployment,
     EnumerationDeployment,
@@ -31,16 +34,68 @@ from score.parsers.franca_parser.model.fdepl.type_collection_deployment import (
     TypedefDeployment,
     UnionDeployment,
 )
+from score.parsers.franca_parser.model.fidl.type_collection import TypeCollection
 from score.parsers.franca_parser.parser import FrancaParser
 from score.parsers.franca_parser.transformer.file_graph_transformer import (
     FrancaFileGraphTransformer,
 )
+from score.parsers.franca_parser.transformer.resolver.fdepl_resolver import FDEPLResolver
 
 TEST_DATA_DIRECTORY = Path(__file__).parent / "test_data"
 
 
 class FDEPLTypeCollectionTransformerTest(unittest.TestCase):
     """Verify type-collection deployments from a self-contained FDEPL graph."""
+
+    def test_resolve_deployment_rejects_mismatched_datatype_kind(self) -> None:
+        owning_file = FDEPLFileModel(file_path=Path("invalid.fdepl"), namespace=None)
+        target_name = Identifier("WrongTarget")
+        cases = [
+            (
+                TypedefDeployment(deployed_type=target_name),
+                EnumDataType(name=target_name, source_kind=DataTypeSource.FRANCA),
+                DataTypeKind.TYPEDEF,
+            ),
+            (
+                ArrayDeployment(deployed_type=target_name),
+                EnumDataType(name=target_name, source_kind=DataTypeSource.FRANCA),
+                DataTypeKind.ARRAY,
+            ),
+            (
+                EnumerationDeployment(deployed_type=target_name),
+                StructDataType(name=target_name, source_kind=DataTypeSource.FRANCA),
+                DataTypeKind.ENUM,
+            ),
+            (
+                StructDeployment(deployed_type=target_name),
+                EnumDataType(name=target_name, source_kind=DataTypeSource.FRANCA),
+                DataTypeKind.STRUCT,
+            ),
+            (
+                UnionDeployment(deployed_type=target_name),
+                EnumDataType(name=target_name, source_kind=DataTypeSource.FRANCA),
+                DataTypeKind.UNION,
+            ),
+            (
+                MapDeployment(deployed_type=target_name),
+                EnumDataType(name=target_name, source_kind=DataTypeSource.FRANCA),
+                DataTypeKind.MAP,
+            ),
+        ]
+
+        for deployment, target, expected_kind in cases:
+            with self.subTest(deployment=type(deployment).__name__):
+                with self.assertRaises(ValueError) as raised:
+                    FDEPLResolver._resolve_datatype(
+                        deployment,
+                        TypeCollection(name=None, datatypes=[target]),
+                        owning_file,
+                    )
+                self.assertEqual(
+                    str(raised.exception),
+                    f"FIDL datatype {target_name.as_str} has kind {target.kind}, "
+                    f"expected {expected_kind} in {owning_file.file_path}",
+                )
 
     def test_transform_files_given_anonymous_type_collection_expect_target_bound_by_package(self) -> None:
         deployment_file = TEST_DATA_DIRECTORY / "anonymous_someip_deployment.fdepl"

@@ -16,6 +16,7 @@
 from dataclasses import dataclass, field
 
 from score.ecu_model.data_types.primitives import PrimitiveDataType
+from score.generators.src.datatypes.cpp_model import CppHeaderModel
 
 
 @dataclass
@@ -25,6 +26,7 @@ class CppTypeInfo:
     source_type_name: str
     cpp_type_name: str
     required_includes: tuple[str, ...]
+    header_model: CppHeaderModel | None = None
 
 
 @dataclass

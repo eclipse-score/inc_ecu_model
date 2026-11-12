@@ -17,11 +17,53 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
+class CppField:
+    """A struct member's source name and resolved C++ type expression."""
+
+    name: str
+    cpp_type: str
+    generated_type_alias: str | None = None
+
+
+@dataclass(frozen=True)
+class CppStruct:
+    """A struct declaration with members in source order."""
+
+    name: str
+    fields: tuple[CppField, ...]
+
+
+@dataclass(frozen=True)
 class CppAlias:
     """A named C++ type alias and its resolved C++ type expression."""
 
     name: str
     cpp_type: str
+
+
+@dataclass(frozen=True)
+class CppVariant:
+    """A named variant alias with alternatives in effective declaration order."""
+
+    name: str
+    alternatives: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class CppEnumerator:
+    """An enum literal's source name and resolved integer value."""
+
+    name: str
+    value: int
+
+
+@dataclass(frozen=True)
+class CppEnum:
+    """A scoped enum with an explicit underlying type and ordered literals."""
+
+    name: str
+    underlying_type: str
+    values: tuple[CppEnumerator, ...]
 
 
 @dataclass(frozen=True)
@@ -32,4 +74,4 @@ class CppHeaderModel:
     guard: str
     namespaces: tuple[str, ...]
     includes: tuple[str, ...]
-    declaration: CppAlias
+    declaration: CppStruct | CppAlias | CppEnum | CppVariant

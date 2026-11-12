@@ -11,7 +11,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # *******************************************************************************
 
-"""Verify primitive mappings, typedef dependencies, and generation failures."""
+"""Verify shared datatype registration and dependency traversal."""
 
 import hashlib
 import tempfile
@@ -19,11 +19,12 @@ import unittest
 from pathlib import Path
 
 from score.ecu_model.data_types.common import DataTypeSource
+from score.ecu_model.data_types.composite import DataTypeField
 from score.ecu_model.data_types.identifier import Identifier, QualifiedName
 from score.ecu_model.data_types.primitives import PrimitiveDataType
 from score.ecu_model.data_types.struct import StructDataType
 from score.ecu_model.data_types.typedef import TypedefDataType
-from score.ecu_model.model import ModelElement, ModelRegistry
+from score.ecu_model.model import ModelRegistry, RegisteredModelElement
 from score.generators.src.datatypes.cpp_model import CppAlias
 from score.generators.src.datatypes.datatype_collector import DatatypeCollector
 from score.generators.src.datatypes.datatype_generator import DatatypeGenerator
@@ -31,7 +32,7 @@ from score.generators.src.datatypes.datatype_utils import DatatypeUtils
 
 
 class DatatypeUtilsTest(unittest.TestCase):
-    """Exercise the first supported datatype scope without demo inputs."""
+    """Verify shared datatype registration and dependency traversal."""
 
     def setUp(self):
         """Isolate model objects registered during each test."""
@@ -126,25 +127,12 @@ class DatatypeUtilsTest(unittest.TestCase):
         self.assertEqual(repeated_headers, headers)
 
     def test_collector_preserves_order_without_filtering_entries(self):
-        """Invalid entries and unsupported datatypes are passed to lowering unchanged."""
-        element = ModelElement()
+        """Invalid entries and supported datatypes are passed to lowering unchanged."""
+        element = RegisteredModelElement()
         alias = TypedefDataType(name="Count", source_kind=DataTypeSource.FRANCA, data_type=PrimitiveDataType.UINT8)
-        unsupported = StructDataType(name="Record", source_kind=DataTypeSource.FRANCA, fields=[])
-        selected = DatatypeCollector.collect(
-            {"data_types": {element.id: element, alias.id: alias, unsupported.id: unsupported}}
-        )
-        self.assertEqual(selected, (element, alias, unsupported))
-        with self.assertRaisesRegex(NotImplementedError, "Record"):
-            DatatypeUtils.build_type_registry([unsupported], lambda header: self.fail("Unexpected header"))
-
-    def test_unsupported_typedef_target_fails_before_emission(self):
-        """Aliases cannot depend on declaration kinds outside the first scope."""
-        unsupported = StructDataType(name="Record", source_kind=DataTypeSource.FRANCA, fields=[])
-        alias = TypedefDataType(name="Alias", source_kind=DataTypeSource.FRANCA, data_type=unsupported)
-        headers = []
-        with self.assertRaisesRegex(NotImplementedError, "Unsupported datatype: Record"):
-            DatatypeUtils.build_type_registry([alias], headers.append)
-        self.assertEqual(headers, [])
+        record = StructDataType(name="Record", source_kind=DataTypeSource.FRANCA, fields=[])
+        selected = DatatypeCollector.collect({"data_types": {element.id: element, alias.id: alias, record.id: record}})
+        self.assertEqual(selected, (element, alias, record))
 
     def test_unresolved_typedef_target_fails_before_emission(self):
         """Identifier references must be resolved before generation."""
@@ -178,24 +166,6 @@ class DatatypeUtilsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Case-insensitive type name conflict"):
             DatatypeUtils.build_type_registry([first, second], lambda header: None)
 
-    def test_generator_emits_typedef_headers_without_mutating_inputs(self):
-        """A final-model section flows through collection, lowering, and rendering."""
-        alias = TypedefDataType(
-            name="Count",
-            namespace="example",
-            source_kind=DataTypeSource.FRANCA,
-            data_type=PrimitiveDataType.UINT16,
-        )
-        original_model = alias.model_dump()
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            output_dir = Path(temporary_directory) / "out"
-            DatatypeGenerator().generate({"data_types": {alias.id: alias}}, output_dir)
-            content = (output_dir / "example/Count.h").read_text(encoding="utf-8")
-            self.assertIn("#include <cstdint>", content)
-            self.assertIn("using Count = std::uint16_t;", content)
-            self.assertIn("namespace example {", content)
-            self.assertEqual(alias.model_dump(), original_model)
-
     def test_generator_accepts_empty_datatype_section(self):
         """An empty datatype section produces no headers."""
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -205,10 +175,10 @@ class DatatypeUtilsTest(unittest.TestCase):
 
     def test_generator_rejects_non_datatype_entries_before_writing(self):
         """Non-datatype entries reach lowering and fail instead of being skipped."""
-        element = ModelElement()
+        element = RegisteredModelElement()
         with tempfile.TemporaryDirectory() as temporary_directory:
             output_dir = Path(temporary_directory) / "out"
-            with self.assertRaisesRegex(TypeError, "Expected a datatype, got ModelElement"):
+            with self.assertRaisesRegex(NotImplementedError, "Unsupported datatype: RegisteredModelElement"):
                 DatatypeGenerator().generate({"data_types": {element.id: element}}, output_dir)
             self.assertFalse(output_dir.exists())
 
@@ -219,6 +189,28 @@ class DatatypeUtilsTest(unittest.TestCase):
             with self.assertRaisesRegex(KeyError, "data_types"):
                 DatatypeGenerator().generate({}, output_dir)
             self.assertFalse(output_dir.exists())
+
+    def test_struct_dependency_callback_failure_stops_before_parent_and_later_roots(self):
+        """A child must finish output before its parent can notify the caller."""
+        child = StructDataType(name="Child", source_kind=DataTypeSource.FRANCA)
+        parent = StructDataType(
+            name="Parent",
+            source_kind=DataTypeSource.FRANCA,
+            fields=[DataTypeField(name="child", data_type=child)],
+        )
+        later = StructDataType(name="Later", source_kind=DataTypeSource.FRANCA)
+        headers = []
+        failure = RuntimeError("dependency rendering failed")
+
+        def fail_on_dependency(header):
+            headers.append(header)
+            raise failure
+
+        with self.assertRaises(RuntimeError) as raised:
+            DatatypeUtils.build_type_registry([parent, later], fail_on_dependency)
+
+        self.assertIs(raised.exception, failure)
+        self.assertEqual([header.path for header in headers], ["Child.h"])
 
 
 if __name__ == "__main__":

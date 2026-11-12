@@ -27,7 +27,7 @@ from uuid import UUID
 from score.ecu_model.architecture.activity import Activity
 from score.ecu_model.communication.service_interface import Broadcast
 from score.ecu_model.data_types.identifier import Identifier
-from score.ecu_model.model import ModelElement, ModelRegistry
+from score.ecu_model.model import ModelRegistry, RegisteredModelElement
 from score.parsers.runner.load_and_merge import load_and_merge
 from score.parsers.runner.run_load_and_merge import _stringify_keys, main
 
@@ -45,7 +45,7 @@ class TestLoadAndMerge(unittest.TestCase):
         ModelRegistry.elements.clear()
         ModelRegistry.elements.update(self.saved_registry)
 
-    def write_registry(self, name: str, element: ModelElement) -> str:
+    def write_registry(self, name: str, element: RegisteredModelElement) -> str:
         ModelRegistry.elements.clear()
         ModelRegistry.elements[element.id] = element
         path = self.directory / name
@@ -68,7 +68,7 @@ class TestLoadAndMerge(unittest.TestCase):
         return output
 
     def test_merges_arbitrary_number_of_registries(self) -> None:
-        elements = [ModelElement(description=str(index)) for index in range(5)]
+        elements = [RegisteredModelElement(description=str(index)) for index in range(5)]
         inputs = [self.write_registry(f"parser_{index}.pkl", element) for index, element in enumerate(elements)]
 
         result = load_and_merge(inputs)
@@ -78,7 +78,7 @@ class TestLoadAndMerge(unittest.TestCase):
         self.assertEqual(result["data_types"], expected)
 
     def test_single_registry(self) -> None:
-        element = ModelElement(description="single")
+        element = RegisteredModelElement(description="single")
         registry = self.write_registry("single.pkl", element)
 
         load_and_merge([registry])
@@ -86,7 +86,7 @@ class TestLoadAndMerge(unittest.TestCase):
         self.assertEqual(ModelRegistry.elements, {element.id: element})
 
     def test_empty_list_clears_registry(self) -> None:
-        ModelElement(description="stale")
+        RegisteredModelElement(description="stale")
 
         self.assertEqual(load_and_merge([]), {"data_types": {}})
         self.assertEqual(ModelRegistry.elements, {})
@@ -103,7 +103,7 @@ class TestLoadAndMerge(unittest.TestCase):
             load_and_merge([str(path)])
 
     def test_duplicate_element_ids_are_rejected(self) -> None:
-        element = ModelElement()
+        element = RegisteredModelElement()
         first = self.write_registry("first.pkl", element)
         second = self.write_registry("second.pkl", element)
 
@@ -112,7 +112,7 @@ class TestLoadAndMerge(unittest.TestCase):
 
     def test_cli_merges_model_types_into_final_result(self) -> None:
         elements = [
-            ModelElement(description="generic parser"),
+            RegisteredModelElement(description="generic parser"),
             Activity(name=Identifier("Activity")),
             Broadcast(name="Event"),
         ]
@@ -128,7 +128,7 @@ class TestLoadAndMerge(unittest.TestCase):
         self.assertEqual(text, json.loads(json.dumps(_stringify_keys(result), default=str)))
 
     def test_cli_final_result_is_not_a_raw_registry_input(self) -> None:
-        element = ModelElement(description="parser")
+        element = RegisteredModelElement(description="parser")
         registry = self.write_registry("parser.pkl", element)
         output = self.run_merge([registry], "merged.pkl")
 
@@ -148,8 +148,8 @@ class TestLoadAndMerge(unittest.TestCase):
             main()
 
     def test_main_merges_repeated_inputs_and_creates_output_directories(self) -> None:
-        first = ModelElement(description="first")
-        second = ModelElement(description="second")
+        first = RegisteredModelElement(description="first")
+        second = RegisteredModelElement(description="second")
         first_input = self.write_registry("first.pkl", first)
         second_input = self.write_registry("second.pkl", second)
         output = self.directory / "binary" / "merged.pkl"

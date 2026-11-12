@@ -17,12 +17,12 @@ from collections.abc import Sequence
 from pathlib import Path
 from uuid import UUID
 
-from score.ecu_model.model import ModelElement, ModelRegistry
+from score.ecu_model.model import ModelRegistry, RegisteredModelElement
 
 
 def load_and_merge(registry_pickle_files: Sequence[str]) -> dict[str, object]:
     """Merge parser registry pickles into a single model data-types mapping."""
-    merged_elements: dict[UUID, ModelElement] = {}
+    merged_elements: dict[UUID, RegisteredModelElement] = {}
 
     for registry_path in registry_pickle_files:
         registry_file = Path(registry_path)

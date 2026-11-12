@@ -17,7 +17,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from uuid import UUID
 
-from score.ecu_model.model import ModelElement
+from score.ecu_model.model import RegisteredModelElement
 from score.generators.src.common.output_writer import OutputWriter
 from score.generators.src.datatypes.cpp_model import CppHeaderModel
 from score.generators.src.datatypes.datatype_collector import DatatypeCollector
@@ -28,7 +28,7 @@ from score.generators.src.datatypes.header_renderer import HeaderRenderer
 class DatatypeGenerator:
     """Collect input types and immediately render and write each completed header."""
 
-    def generate(self, model: Mapping[str, Mapping[UUID, ModelElement]], output_dir: Path) -> None:
+    def generate(self, model: Mapping[str, Mapping[UUID, RegisteredModelElement]], output_dir: Path) -> None:
         """Generate supported types from the merged model's datatype section."""
         selected = DatatypeCollector.collect(model)
         renderer = HeaderRenderer()

@@ -18,7 +18,7 @@ from pydantic import Field, field_validator, model_validator
 
 from score.ecu_model.data_types.identifier import Identifier, QualifiedName
 from score.ecu_model.data_types.primitives import PrimitiveDataType
-from score.ecu_model.model import ModelElement
+from score.ecu_model.model import RegisteredModelElement
 
 
 class DataTypeKind(str, Enum):
@@ -58,7 +58,7 @@ class DataTypeSource(str, Enum):
         return self.value
 
 
-class DataTypeBase(ModelElement):
+class DataTypeBase(RegisteredModelElement):
     """Shared metadata for data types that are declared in a source language."""
 
     kind: DataTypeKind = Field(

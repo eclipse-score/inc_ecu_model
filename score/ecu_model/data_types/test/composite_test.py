@@ -24,6 +24,29 @@ from score.ecu_model.model import ModelRegistry
 
 
 class TestCompositeDataType(unittest.TestCase):
+    def setUp(self) -> None:
+        ModelRegistry.elements.clear()
+        self.addCleanup(ModelRegistry.elements.clear)
+
+    def test_fields_keep_identity_without_independent_registration(self) -> None:
+        """Registry serialization retains owned fields and their shared type references."""
+        child = StructDataType(name="Child", source_kind=DataTypeSource.FRANCA)
+        field = DataTypeField(name="child", data_type=child, description="Child member")
+        parent = StructDataType(name="Parent", source_kind=DataTypeSource.FRANCA, fields=[field])
+
+        self.assertEqual(ModelRegistry.elements, {child.id: child, parent.id: parent})
+        self.assertNotIn(field.id, ModelRegistry.elements)
+
+        restored_count = ModelRegistry.deserialize(ModelRegistry.serialize())
+        restored_parent = ModelRegistry.elements[parent.id]
+        restored_field = restored_parent.fields[0]
+
+        self.assertEqual(restored_count, 2)
+        self.assertEqual(restored_field.id, field.id)
+        self.assertEqual(restored_field.description, "Child member")
+        self.assertIs(restored_field.data_type, ModelRegistry.elements[child.id])
+        self.assertNotIn(field.id, ModelRegistry.elements)
+
     @staticmethod
     def _field(identifier: str, field_number: int | None = None) -> DataTypeField:
         return DataTypeField(

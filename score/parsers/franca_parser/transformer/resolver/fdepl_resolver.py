@@ -17,6 +17,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from score.ecu_model.data_types.common import DataTypeKind
 from score.ecu_model.data_types.identifier import QualifiedName
 from score.parsers.franca_parser.model.fdepl.fdepl_file import (
     FDEPLFileModel,
@@ -25,11 +26,14 @@ from score.parsers.franca_parser.model.fdepl.specification import (
     DeploymentSpecification,
 )
 from score.parsers.franca_parser.model.fdepl.type_collection_deployment import (
+    ArrayDeployment,
     EnumerationDeployment,
     EnumValueDeployment,
+    MapDeployment,
     StructDeployment,
     TypeCollectionDatatypeDeployment,
     TypeCollectionDeployment,
+    TypedefDeployment,
     UnionDeployment,
 )
 from score.parsers.franca_parser.model.fidl.fidl_file import (
@@ -58,6 +62,15 @@ class PendingUseDefinition:
 
 class FDEPLResolver:
     """Resolve FDEPL specification and type-collection deployment references."""
+
+    _EXPECTED_DATATYPE_KINDS = {
+        TypedefDeployment: DataTypeKind.TYPEDEF,
+        ArrayDeployment: DataTypeKind.ARRAY,
+        EnumerationDeployment: DataTypeKind.ENUM,
+        StructDeployment: DataTypeKind.STRUCT,
+        UnionDeployment: DataTypeKind.UNION,
+        MapDeployment: DataTypeKind.MAP,
+    }
 
     def __init__(self, files: Mapping[Path, FrancaFileModel]) -> None:
         """Create a resolver over the transformed Franca file graph."""
@@ -211,6 +224,12 @@ class FDEPLResolver:
                 break
         else:
             raise ValueError(f"Could not resolve FIDL datatype {reference.as_str} in {owning_file.file_path}")
+        expected_kind = FDEPLResolver._EXPECTED_DATATYPE_KINDS[type(deployment_element)]
+        if datatype.kind != expected_kind:
+            raise ValueError(
+                f"FIDL datatype {reference.as_str} has kind {datatype.kind}, "
+                f"expected {expected_kind} in {owning_file.file_path}"
+            )
         deployment_element.deployed_type = datatype
         if isinstance(deployment_element, EnumerationDeployment):
             FDEPLResolver._resolve_deployment_targets(

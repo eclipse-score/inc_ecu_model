@@ -26,12 +26,12 @@ from score.ecu_model.communication.service_interface import InterfaceDefinition
 from score.ecu_model.data_types.common import DataTypeBase, DataTypeSource
 from score.ecu_model.data_types.identifier import Identifier, QualifiedName, SelectableIdentifier
 from score.ecu_model.data_types.primitives import PrimitiveDataType
-from score.ecu_model.model import ModelElement, ModelRegistry
+from score.ecu_model.model import ModelRegistry, RegisteredModelElement
 
 
 def encode_value(value: object) -> object:
-    """Represent model references by UUID rather than recursively expanding their targets."""
-    if isinstance(value, ModelElement):
+    """Reference registered elements by UUID and expand owned model values inline."""
+    if isinstance(value, RegisteredModelElement):
         return {"$ref": str(value.id)}
     if isinstance(value, (Identifier, QualifiedName, SelectableIdentifier, UUID)):
         return str(value)
