@@ -22,6 +22,7 @@ from uuid import UUID
 
 from score.ecu_model.model import RegisteredModelElement
 from score.generators.src.datatypes.datatype_generator import DatatypeGenerator
+from score.generators.src.layout.layout_generator import LayoutGenerator
 
 
 class Generator(Protocol):
@@ -32,7 +33,7 @@ class Generator(Protocol):
         ...  # pragma: no cover
 
 
-GENERATOR_FACTORIES: tuple[type[Generator], ...] = (DatatypeGenerator,)
+GENERATOR_FACTORIES: tuple[type[Generator], ...] = (DatatypeGenerator, LayoutGenerator)
 
 
 class GeneratorRunner:

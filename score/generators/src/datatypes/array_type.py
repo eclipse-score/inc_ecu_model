@@ -21,6 +21,7 @@ from score.ecu_model.data_types.primitives import PrimitiveDataType
 from score.ecu_model.data_types.struct import StructDataType
 from score.ecu_model.data_types.typedef import TypedefDataType
 from score.ecu_model.data_types.union import UnionDataType
+from score.generators.src.common.array_bounds import effective_bounds
 from score.generators.src.common.common_utils import generate_header_file_guard
 from score.generators.src.datatypes.cpp_model import CppAlias, CppHeaderModel
 from score.generators.src.datatypes.cpp_type_registry import CppTypeInfo, CppTypeRegistry
@@ -41,46 +42,6 @@ def get_array_type_info(
     return registry.named_types[datatype.fully_qualified_name]
 
 
-def _deployment_bound(properties: Mapping[str, object], suffix: str, context: str) -> int | None:
-    """Require SOME/IP, IPC and Persistency agreement; use Diagnostic only as fallback."""
-    values = {prefix: properties.get(prefix + "Array" + suffix) for prefix in ("SomeIp", "Ipc", "Persistency")}
-    for value in values.values():
-        if value is not None and (not isinstance(value, int) or isinstance(value, bool)):
-            raise ValueError(f"Invalid array {suffix} for {context}: expected integer, got {value!r}")
-    if len({value for value in values.values() if value is not None}) > 1:
-        raise ValueError(f"Conflicting array {suffix} for {context}: {values}")
-    selected = next((value for value in values.values() if value is not None), None)
-    if selected is not None:
-        return selected
-    diagnostic = properties.get("DiagnosticArray" + suffix)
-    if diagnostic is not None and (not isinstance(diagnostic, int) or isinstance(diagnostic, bool)):
-        raise ValueError(f"Invalid array {suffix} for {context}: expected integer, got {diagnostic!r}")
-    return diagnostic
-
-
-def _effective_bounds(datatype: ArrayDataType, properties: Mapping[str, object], context: str) -> tuple[int, int]:
-    """Prefer explicit max; otherwise resolve both bounds from deployment without mutation."""
-    maximum = datatype.dimension_max
-    if maximum is not None:
-        minimum = datatype.dimension_min if datatype.dimension_min is not None else maximum
-    else:
-        minimum = _deployment_bound(properties, "MinLength", context)
-        maximum = _deployment_bound(properties, "MaxLength", context)
-    missing = [name for name, value in (("min", minimum), ("max", maximum)) if value is None]
-    if missing:
-        raise ValueError(f"Missing array bounds for {context}: {', '.join(missing)}")
-    if (
-        not isinstance(minimum, int)
-        or isinstance(minimum, bool)
-        or not isinstance(maximum, int)
-        or isinstance(maximum, bool)
-        or minimum < 0
-        or maximum < minimum
-    ):
-        raise ValueError(f"Invalid array bounds for {context}: ({minimum}, {maximum}); expected 0 <= min <= max")
-    return minimum, maximum
-
-
 def _build_array_expression(
     datatype: ArrayDataType,
     registry: CppTypeRegistry,
@@ -92,7 +53,7 @@ def _build_array_expression(
     Equal positive bounds select std::array; all others select std::vector,
     including (0, 0), without runtime bound enforcement.
     """
-    minimum, maximum = _effective_bounds(datatype, deployment_properties, context)
+    minimum, maximum = effective_bounds(datatype, deployment_properties, context)
     element = datatype.data_type
     if isinstance(element, PrimitiveDataType):
         element_info = register_primitive(element, registry)

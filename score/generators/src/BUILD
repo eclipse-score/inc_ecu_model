@@ -20,5 +20,6 @@ py_library(
     deps = [
         "//score/ecu_model",
         "//score/generators/src/datatypes:datatype_generator",
+        "//score/generators/src/layout:layout_generator",
     ],
 )
