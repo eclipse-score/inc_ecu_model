@@ -35,11 +35,3 @@ class FrancaFileModel:
     file_path: Path
     namespace: QualifiedName | None
     imported_files: list[ImportedNamespace] = field(default_factory=list)
-
-
-@dataclass(frozen=True)
-class FrancaTransformationContext:
-    """Source-file information available while a Franca file is transformed."""
-
-    file_path: Path
-    imported_files: list[ImportedNamespace]

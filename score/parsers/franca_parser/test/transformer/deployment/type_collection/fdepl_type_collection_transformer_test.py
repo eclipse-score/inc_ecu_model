@@ -15,15 +15,17 @@
 
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from score.ecu_model.data_types.array import ArrayDataType
 from score.ecu_model.data_types.common import DataTypeKind, DataTypeSource
 from score.ecu_model.data_types.enum import EnumDataType, EnumValue
-from score.ecu_model.data_types.identifier import Identifier
+from score.ecu_model.data_types.identifier import Identifier, QualifiedName
 from score.ecu_model.data_types.map import MapDataType
 from score.ecu_model.data_types.struct import StructDataType
 from score.ecu_model.data_types.typedef import TypedefDataType
 from score.ecu_model.data_types.union import UnionDataType
+from score.parsers.franca_parser.deployment_property_applier import DeploymentPropertyApplier
 from score.parsers.franca_parser.model.fdepl.fdepl_file import FDEPLFileModel
 from score.parsers.franca_parser.model.fdepl.type_collection_deployment import (
     ArrayDeployment,
@@ -31,11 +33,14 @@ from score.parsers.franca_parser.model.fdepl.type_collection_deployment import (
     EnumValueDeployment,
     MapDeployment,
     StructDeployment,
+    TypeCollectionDeployment,
     TypedefDeployment,
     UnionDeployment,
 )
+from score.parsers.franca_parser.model.fidl.fidl_file import FIDLFileModel
 from score.parsers.franca_parser.model.fidl.type_collection import TypeCollection
 from score.parsers.franca_parser.parser import FrancaParser
+from score.parsers.franca_parser.transformer.fdepl_transformer import FDEPLTransformer
 from score.parsers.franca_parser.transformer.file_graph_transformer import (
     FrancaFileGraphTransformer,
 )
@@ -46,6 +51,41 @@ TEST_DATA_DIRECTORY = Path(__file__).parent / "test_data"
 
 class FDEPLTypeCollectionTransformerTest(unittest.TestCase):
     """Verify type-collection deployments from a self-contained FDEPL graph."""
+
+    def test_type_collection_deployment_requires_target(self) -> None:
+        self.assertRaisesRegex(TypeError, "required keyword-only argument: 'target'", TypeCollectionDeployment)
+
+    def test_fd_types_resolves_target_before_constructing_deployment(self) -> None:
+        with TemporaryDirectory() as directory:
+            design_path = Path(directory) / "types.fidl"
+            deployment_path = Path(directory) / "types.fdepl"
+            design_path.write_text("package demo\ntypeCollection Types {}\n", encoding="utf-8")
+            deployment_path.write_text(
+                'package deployment\nimport "types.fidl"\nspecification someip {}\n'
+                "<** @description: ignored **>\n"
+                "define someip for typeCollection demo.Types {}\n",
+                encoding="utf-8",
+            )
+            parsed_file = FrancaParser([deployment_path], [design_path]).parse_files()[deployment_path.resolve()]
+            target = TypeCollection(name=Identifier("Types"))
+            design = FIDLFileModel(
+                file_path=design_path.resolve(),
+                namespace=QualifiedName((Identifier("demo"),)),
+                type_collections=[target],
+            )
+            transformer = FDEPLTransformer({design.file_path: design}, parsed_file, DeploymentPropertyApplier())
+
+            deployment = transformer.fd_types(QualifiedName((Identifier("demo"), Identifier("Types"))))
+
+            self.assertIs(deployment.target, target)
+            file_model = transformer.transform_file()
+            self.assertEqual(file_model.file_path, parsed_file.file_path)
+            self.assertIs(file_model.imported_files, parsed_file.imports)
+            self.assertEqual(len(file_model.type_collection_deployments), 1)
+            with self.assertRaisesRegex(
+                ValueError, "Could not resolve FIDL type collection demo.Missing in .*types.fdepl"
+            ):
+                transformer.fd_types(QualifiedName((Identifier("demo"), Identifier("Missing"))))
 
     def test_resolve_deployment_rejects_mismatched_datatype_kind(self) -> None:
         owning_file = FDEPLFileModel(file_path=Path("invalid.fdepl"), namespace=None)
@@ -129,6 +169,10 @@ class FDEPLTypeCollectionTransformerTest(unittest.TestCase):
         self.assertEqual(deployment.specification.name.as_str, "someip")
         self.assertEqual(deployment.target.name.as_str, "TypeCollectionSkyLandmarks")
         self.assertEqual(deployment.name.as_str, "TypeCollectionSkyLandmarksSomeipStringDeployment_v1_0")
+        self.assertEqual(
+            [(parameter.name.as_str, parameter.value) for parameter in deployment.parameter_set],
+            [("TypeCollectionMarker", 42)],
+        )
         self.assertEqual(len(deployment.deployment_elements), 6)
 
         struct_deployment = deployment.deployment_elements[0]

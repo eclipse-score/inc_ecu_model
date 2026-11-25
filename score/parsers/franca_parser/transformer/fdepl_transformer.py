@@ -15,7 +15,8 @@
 
 from lark import v_args
 
-from score.ecu_model.data_types.identifier import Identifier, QualifiedName
+from score.ecu_model.common.version import Version
+from score.ecu_model.data_types.identifier import Identifier, QualifiedName, SelectableIdentifier
 from score.parsers.franca_parser.deployment_property_applier import (
     DeploymentPropertyApplier,
 )
@@ -24,6 +25,15 @@ from score.parsers.franca_parser.model.fdepl.definition import (
 )
 from score.parsers.franca_parser.model.fdepl.fdepl_file import (
     FDEPLFileModel,
+)
+from score.parsers.franca_parser.model.fdepl.interface_deployment import (
+    ArgumentDeployment,
+    AttributeDeployment,
+    BroadcastDeployment,
+    EventGroup,
+    EventGroupReference,
+    InterfaceDeployment,
+    MethodDeployment,
 )
 from score.parsers.franca_parser.model.fdepl.specification import (
     DeploymentPropertyType,
@@ -45,7 +55,7 @@ from score.parsers.franca_parser.model.fdepl.type_collection_deployment import (
     UnionDeployment,
 )
 from score.parsers.franca_parser.model.franca_file import (
-    FrancaTransformationContext,
+    FrancaFileModel,
 )
 from score.parsers.franca_parser.model.parsed_file import ParsedFile
 from score.parsers.franca_parser.transformer.base_transformer import (
@@ -64,23 +74,21 @@ class FDEPLTransformer(FrancaFileTransformer):
 
     def __init__(
         self,
-        transformed_files: dict[object, FDEPLFileModel],
-        transformation_context: FrancaTransformationContext,
+        transformed_files: dict[object, FrancaFileModel],
+        parsed_file: ParsedFile,
+        deployment_property_applier: DeploymentPropertyApplier,
     ) -> None:
         """Create a transformer for one parsed FDEPL source file."""
         super().__init__()
         self._transformed_files = transformed_files
-        self._transformation_context = transformation_context
+        self._parsed_file = parsed_file
         self._resolver = FDEPLResolver(transformed_files)
-        self._deployment_property_applier = DeploymentPropertyApplier()
+        self._deployment_property_applier = deployment_property_applier
         self._pending_use_definitions: list[PendingUseDefinition] = []
 
-    def transform_file(self, parsed_file: ParsedFile) -> FDEPLFileModel:
+    def transform_file(self) -> FDEPLFileModel:
         """Transform a parsed source file and retain its import context."""
-        file_model = self.transform(parsed_file.parse_tree)
-        file_model.file_path = parsed_file.file_path
-        file_model.imported_files = parsed_file.imports
-        return file_model
+        return self.transform(self._parsed_file.parse_tree)
 
     @staticmethod
     @v_args(inline=True)
@@ -93,17 +101,21 @@ class FDEPLTransformer(FrancaFileTransformer):
         """Collect specifications declared by an FDEPL file."""
         specifications: list[DeploymentSpecification] = []
         type_collection_deployments: list[TypeCollectionDeployment] = []
+        interface_deployments: list[InterfaceDeployment] = []
         for element in elements:
             if isinstance(element, DeploymentSpecification):
                 specifications.append(element)
             elif isinstance(element, TypeCollectionDeployment):
                 type_collection_deployments.append(element)
+            elif isinstance(element, InterfaceDeployment):
+                interface_deployments.append(element)
         file_model = FDEPLFileModel(
-            file_path=self._transformation_context.file_path,
+            file_path=self._parsed_file.file_path,
             namespace=package,
-            imported_files=self._transformation_context.imported_files,
+            imported_files=self._parsed_file.imports,
             specifications=specifications,
             type_collection_deployments=type_collection_deployments,
+            interface_deployments=interface_deployments,
         )
         for specification in file_model.specifications:
             specification.base_specifications = [
@@ -115,10 +127,17 @@ class FDEPLTransformer(FrancaFileTransformer):
                 deployment.specification,
                 file_model,
             )
-            deployment.target = self._resolver.resolve_type_collection(deployment.target, file_model)
             self._resolver.resolve_datatype_deployments(deployment, file_model)
             self._pending_use_definitions.extend(self._resolver.resolve_use_definitions(deployment, file_model))
             self._deployment_property_applier.apply_type_collection_deployment(deployment)
+        for deployment in file_model.interface_deployments:
+            deployment.specification = self._resolver.resolve_base_specification(
+                deployment.specification,
+                file_model,
+            )
+            self._resolver.resolve_interface_deployment_elements(deployment, file_model)
+            self._pending_use_definitions.extend(self._resolver.resolve_use_definitions(deployment, file_model))
+            self._deployment_property_applier.apply_interface_deployment(deployment)
         return file_model
 
     @property
@@ -275,15 +294,186 @@ class FDEPLTransformer(FrancaFileTransformer):
         """Transform a one-dimensional property value array."""
         return list(values)
 
+    @staticmethod
+    @v_args(inline=True)
+    def fd_version_spec(major: object) -> Version:
+        """Transform the optional major version of an interface deployment."""
+        return Version(major=franca_integer(major), minor=0, patch=0)
+
+    @staticmethod
+    @v_args(inline=True)
+    def fd_id_with_selector(
+        name: Identifier,
+        selector: Identifier | None = None,
+    ) -> SelectableIdentifier:
+        """Transform an overloaded method or broadcast name."""
+        return SelectableIdentifier(f"{name}:{selector}" if selector is not None else str(name))
+
+    @staticmethod
+    @v_args(inline=True)
+    def fd_parameter_set(*parameters: DeploymentParameter) -> tuple[str, list[DeploymentParameter]]:
+        """Group the parameters applying to one interface deployment element."""
+        return "parameter_set", list(parameters)
+
+    @staticmethod
+    @v_args(inline=True)
+    def fd_interface_element(element: object) -> object:
+        """Unwrap one interface deployment element."""
+        return element
+
+    @staticmethod
+    @v_args(inline=True)
+    def fd_argument(name: Identifier, *elements: object) -> ArgumentDeployment:
+        """Build an unresolved argument deployment."""
+        parameters = next(
+            (element[1] for element in elements if isinstance(element, tuple) and element[0] == "parameter_set"),
+            [],
+        )
+        return ArgumentDeployment(deployed_type=name, parameter_set=parameters)
+
+    @staticmethod
+    @v_args(inline=True)
+    def fd_argument_list(*arguments: ArgumentDeployment) -> list[ArgumentDeployment]:
+        """Collect argument deployments in declaration order."""
+        return list(arguments)
+
+    @staticmethod
+    @v_args(inline=True)
+    def fd_input_arguments(arguments: list[ArgumentDeployment]) -> tuple[str, list[ArgumentDeployment]]:
+        """Label method input argument deployments."""
+        return "inputs", arguments
+
+    @staticmethod
+    @v_args(inline=True)
+    def fd_output_arguments(arguments: list[ArgumentDeployment]) -> tuple[str, list[ArgumentDeployment]]:
+        """Label method or broadcast output argument deployments."""
+        return "outputs", arguments
+
+    @staticmethod
+    @v_args(inline=True)
+    def fd_method(name: SelectableIdentifier, *elements: object) -> MethodDeployment:
+        """Build an unresolved method deployment and its argument deployments."""
+        deployment = MethodDeployment(deployed_type=name)
+        for element in elements:
+            if isinstance(element, tuple) and element[0] == "parameter_set":
+                deployment.parameter_set = element[1]
+            elif isinstance(element, tuple) and element[0] == "inputs":
+                deployment.inputs = {argument.deployed_type: argument for argument in element[1]}
+            elif isinstance(element, tuple) and element[0] == "outputs":
+                deployment.outputs = {argument.deployed_type: argument for argument in element[1]}
+        return deployment
+
+    @staticmethod
+    @v_args(inline=True)
+    def fd_event_group(name: Identifier, *elements: object) -> EventGroup:
+        """Build one named event-group deployment."""
+        parameters = next(
+            (element[1] for element in elements if isinstance(element, tuple) and element[0] == "parameter_set"),
+            [],
+        )
+        return EventGroup(name=name, parameter_set=parameters)
+
+    @staticmethod
+    @v_args(inline=True)
+    def fd_event_group_ref(*elements: object) -> EventGroupReference:
+        """Build an event-group reference with unresolved group names."""
+        reference = EventGroupReference()
+        for element in elements:
+            if isinstance(element, Identifier):
+                reference.used_event_groups.append(EventGroup(name=element))
+            elif isinstance(element, tuple) and element[0] == "parameter_set":
+                reference.parameter_set = element[1]
+        return reference
+
+    @staticmethod
+    @v_args(inline=True)
+    def fd_attribute(name: Identifier, *elements: object) -> AttributeDeployment:
+        """Build an unresolved attribute deployment."""
+        deployment = AttributeDeployment(deployed_type=name)
+        for element in elements:
+            if isinstance(element, EventGroupReference):
+                deployment.event_groups = element
+            elif isinstance(element, tuple) and element[0] == "parameter_set":
+                deployment.parameter_set = element[1]
+        return deployment
+
+    @staticmethod
+    @v_args(inline=True)
+    def fd_broadcast(name: SelectableIdentifier, *elements: object) -> BroadcastDeployment:
+        """Build an unresolved broadcast deployment."""
+        deployment = BroadcastDeployment(deployed_type=name)
+        for element in elements:
+            if isinstance(element, EventGroupReference):
+                deployment.event_groups = element
+            elif isinstance(element, tuple) and element[0] == "parameter_set":
+                deployment.parameter_set = element[1]
+            elif isinstance(element, tuple) and element[0] == "outputs":
+                deployment.outputs = {argument.deployed_type: argument for argument in element[1]}
+        return deployment
+
+    @staticmethod
+    @v_args(inline=True)
+    def fd_general(*elements: object) -> TypeCollectionDeployment | InterfaceDeployment:
+        """Attach the shared deployment specification to its root element."""
+        specification = next((element for element in elements if isinstance(element, QualifiedName)), None)
+        deployment = next(
+            (element for element in elements if isinstance(element, (TypeCollectionDeployment, InterfaceDeployment))),
+            None,
+        )
+        if specification is None or deployment is None:
+            raise TypeError("fd_general requires a specification and deployment definition")
+        deployment.specification = specification
+        return deployment
+
+    @v_args(inline=True)
+    def fd_interface(
+        self,
+        target: QualifiedName,
+        *elements: object,
+    ) -> InterfaceDeployment:
+        """Resolve the imported interface before constructing its deployment."""
+        deployment = InterfaceDeployment(
+            target=self._resolver.resolve_interface(target, self._parsed_file.imports, self._parsed_file.file_path)
+        )
+        for element in elements:
+            if isinstance(element, Version):
+                deployment.version = element
+            elif isinstance(element, QualifiedName):
+                deployment.name = element
+            elif isinstance(element, tuple) and element[0] == "use":
+                deployment.use_definitions.append(element[1])
+            elif isinstance(element, tuple) and element[0] == "parameter_set":
+                deployment.parameter_set = element[1]
+            elif isinstance(
+                element,
+                (
+                    ArrayDeployment,
+                    AttributeDeployment,
+                    BroadcastDeployment,
+                    EnumerationDeployment,
+                    EventGroup,
+                    MethodDeployment,
+                    MapDeployment,
+                    StructDeployment,
+                    TypedefDeployment,
+                    UnionDeployment,
+                ),
+            ):
+                deployment.deployment_elements.append(element)
+        return deployment
+
     @v_args(inline=True)
     def fd_types(
         self,
-        specification: QualifiedName,
         target: QualifiedName,
         *elements: object,
     ) -> TypeCollectionDeployment:
-        """Create an unresolved deployment for one imported FIDL type collection."""
-        deployment = TypeCollectionDeployment(specification=specification, target=target)
+        """Resolve the imported type collection before constructing its deployment."""
+        deployment = TypeCollectionDeployment(
+            target=self._resolver.resolve_type_collection(
+                target, self._parsed_file.imports, self._parsed_file.file_path
+            )
+        )
         for element in elements:
             if isinstance(element, QualifiedName):
                 deployment.name = element
@@ -291,8 +481,8 @@ class FDEPLTransformer(FrancaFileTransformer):
                 deployment.use_definitions.append(element[1])
             elif isinstance(element, int):
                 deployment.version_major = element
-            elif isinstance(element, DeploymentParameter):
-                deployment.parameter_set.append(element)
+            elif isinstance(element, tuple) and element[0] == "parameter_set":
+                deployment.parameter_set = element[1]
             elif isinstance(
                 element,
                 (
@@ -347,23 +537,26 @@ class FDEPLTransformer(FrancaFileTransformer):
     @v_args(inline=True)
     def fd_type_def(
         name: Identifier,
-        *parameters: DeploymentParameter,
+        *elements: object,
     ) -> TypedefDeployment:
         """Create an unresolved typedef deployment."""
-        return TypedefDeployment(deployed_type=name, parameter_set=list(parameters))
+        return TypedefDeployment(
+            deployed_type=name,
+            parameter_set=FDEPLTransformer._parameter_set_from(elements),
+        )
 
     @staticmethod
     @v_args(inline=True)
     def fd_field(name: Identifier, *elements: object) -> FieldDeployment:
         """Create an unresolved struct field deployment."""
-        parameters = [element for element in elements if isinstance(element, DeploymentParameter)]
+        parameters = FDEPLTransformer._parameter_set_from(elements)
         return FieldDeployment(deployed_type=name, parameter_set=parameters)
 
     @staticmethod
     @v_args(inline=True)
     def fd_array(name: Identifier, *elements: object) -> ArrayDeployment:
         """Create an unresolved array deployment."""
-        parameters = [element for element in elements if isinstance(element, DeploymentParameter)]
+        parameters = FDEPLTransformer._parameter_set_from(elements)
         return ArrayDeployment(deployed_type=name, parameter_set=parameters)
 
     @staticmethod
@@ -391,10 +584,13 @@ class FDEPLTransformer(FrancaFileTransformer):
     @v_args(inline=True)
     def fd_enum_value(
         name: Identifier,
-        *parameters: DeploymentParameter,
+        *elements: object,
     ) -> EnumValueDeployment:
         """Create an unresolved deployment for one enumeration value."""
-        return EnumValueDeployment(deployed_type=name, parameter_set=list(parameters))
+        return EnumValueDeployment(
+            deployed_type=name,
+            parameter_set=FDEPLTransformer._parameter_set_from(elements),
+        )
 
     @staticmethod
     @v_args(inline=True)
@@ -402,8 +598,8 @@ class FDEPLTransformer(FrancaFileTransformer):
         """Create an unresolved map deployment with key and value properties."""
         deployment = MapDeployment(deployed_type=name)
         for element in elements:
-            if isinstance(element, DeploymentParameter):
-                deployment.parameter_set.append(element)
+            if isinstance(element, tuple) and element[0] == "parameter_set":
+                deployment.parameter_set = element[1]
             elif isinstance(element, tuple):
                 position, parameters = element
                 if position == "key":
@@ -414,15 +610,23 @@ class FDEPLTransformer(FrancaFileTransformer):
 
     @staticmethod
     @v_args(inline=True)
-    def fd_map_key(*parameters: DeploymentParameter) -> tuple[str, list[DeploymentParameter]]:
+    def fd_map_key(*elements: object) -> tuple[str, list[DeploymentParameter]]:
         """Group raw deployment properties for a map key."""
-        return "key", list(parameters)
+        return "key", FDEPLTransformer._parameter_set_from(elements)
 
     @staticmethod
     @v_args(inline=True)
-    def fd_map_value(*parameters: DeploymentParameter) -> tuple[str, list[DeploymentParameter]]:
+    def fd_map_value(*elements: object) -> tuple[str, list[DeploymentParameter]]:
         """Group raw deployment properties for a map value."""
-        return "value", list(parameters)
+        return "value", FDEPLTransformer._parameter_set_from(elements)
+
+    @staticmethod
+    def _parameter_set_from(elements: tuple[object, ...]) -> list[DeploymentParameter]:
+        """Extract a parameter list produced by the shared FDEPL parameter-set rule."""
+        return next(
+            (element[1] for element in elements if isinstance(element, tuple) and element[0] == "parameter_set"),
+            [],
+        )
 
     @staticmethod
     def fd_type_overwrites(_: object) -> None:

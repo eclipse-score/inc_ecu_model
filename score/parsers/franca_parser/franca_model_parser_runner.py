@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -31,6 +32,7 @@ def main(arguments: Sequence[str] | None = None) -> None:
     argument_parser.add_argument("--src", action="append", required=True)
     argument_parser.add_argument("--dep", action="append", default=[])
     argument_parser.add_argument("--output", required=True)
+    argument_parser.add_argument("--json-output")
     argument_parser.add_argument("--defined", action="append", default=[])
     argument_parser.add_argument("--need-preprocessor", action="store_true")
     parsed_arguments = argument_parser.parse_args(arguments)
@@ -46,6 +48,14 @@ def main(arguments: Sequence[str] | None = None) -> None:
     output_path = Path(parsed_arguments.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_bytes(ModelRegistry.serialize())
+    if parsed_arguments.json_output:
+        json_output_path = Path(parsed_arguments.json_output)
+        json_output_path.parent.mkdir(parents=True, exist_ok=True)
+        registry_json = {
+            str(element_id): element.model_dump(mode="json", serialize_as_any=True)
+            for element_id, element in ModelRegistry.elements.items()
+        }
+        json_output_path.write_text(json.dumps(registry_json, indent=2, sort_keys=True), encoding="utf-8")
 
 
 if __name__ == "__main__":

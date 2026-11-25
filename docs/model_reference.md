@@ -96,9 +96,10 @@ classDiagram
     InterfaceDefinition --> Attribute : attributes
     InterfaceDefinition --> Method : methods
     InterfaceDefinition --> DataTypeBase : datatypes
-    ServiceInterface --> Identifier : name, attribute_deployment_properties
+    ServiceInterface --> Identifier : name, event_groups, attribute_deployment_properties
     ServiceInterface --> QualifiedName : namespace
     ServiceInterface --> InterfaceDefinition : design_element
+    ServiceInterface --> CommunicationBinding : deployment_binding
     ServiceInterface --> SelectableIdentifier : broadcast_deployment_properties, method_deployment_properties
     ArrayDataType --> DataTypeBase : data_type
     ArrayDataType --> Identifier : data_type
@@ -519,9 +520,10 @@ Concrete deployment of an InterfaceDefinition.
 | `name` | [`Identifier`](#identifier) | _required_ |  |
 | `namespace` | [`QualifiedName`](#qualifiedname) | `QualifiedName()` |  |
 | `design_element` | [`InterfaceDefinition`](#interfacedefinition) | _required_ |  |
+| `deployment_binding` | [`CommunicationBinding`](#communicationbinding) \| None | `None` |  |
 | `service_id` | `int \| None` | `None` |  |
-| `deployment_properties` | `dict[str, object]` | `dict()` |  |
 | `interface_deployment_properties` | `dict[str, object]` | `dict()` |  |
+| `event_groups` | dict[[`Identifier`](#identifier), dict[str, object]] | `dict()` |  |
 | `broadcast_deployment_properties` | dict[[`SelectableIdentifier`](#selectableidentifier), dict[str, object]] | `dict()` |  |
 | `attribute_deployment_properties` | dict[[`Identifier`](#identifier), dict[str, object]] | `dict()` |  |
 | `method_deployment_properties` | dict[[`SelectableIdentifier`](#selectableidentifier), dict[str, object]] | `dict()` |  |
@@ -530,7 +532,7 @@ Concrete deployment of an InterfaceDefinition.
 
 | Validator | Kind | Applies to | Description |
 | --- | --- | --- | --- |
-| `_validate_property_names` | field, after | `deployment_properties`, `interface_deployment_properties`, `broadcast_deployment_properties`, `attribute_deployment_properties`, `method_deployment_properties` | Validates `deployment_properties`, `interface_deployment_properties`, `broadcast_deployment_properties`, `attribute_deployment_properties`, `method_deployment_properties`. |
+| `_validate_property_names` | field, after | `interface_deployment_properties`, `event_groups`, `broadcast_deployment_properties`, `attribute_deployment_properties`, `method_deployment_properties` | Validates `interface_deployment_properties`, `event_groups`, `broadcast_deployment_properties`, `attribute_deployment_properties`, `method_deployment_properties`. |
 | `_coerce_namespace` | model, before | _the whole model_ | Allow for specifying the namespace as a simple dot-separated string instead of a QualifiedName object during construction. |
 | `_validate_member_deployment_properties` | model, after | _the whole model_ | Validate that all member-specific deployment data references declared members in the interface design element and all declared members are covered by deployment data. |
 

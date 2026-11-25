@@ -13,9 +13,9 @@
 
 """Import-first transformation over a graph of parsed Franca source files."""
 
+from score.parsers.franca_parser.deployment_property_applier import DeploymentPropertyApplier
 from score.parsers.franca_parser.model.franca_file import (
     FrancaFileModel,
-    FrancaTransformationContext,
 )
 from score.parsers.franca_parser.model.parsed_file import ParsedFile
 from score.parsers.franca_parser.transformer.fdepl_transformer import (
@@ -45,6 +45,7 @@ class FrancaFileGraphTransformer:
         # References deferred until all imported files have been transformed.
         self._pending_datatype_references: list[PendingDatatypeReference] = []
         self._pending_use_definitions: list[PendingUseDefinition] = []
+        self._deployment_property_applier = DeploymentPropertyApplier()
 
     @property
     def transformed_files(self) -> dict[object, FrancaFileModel]:
@@ -84,21 +85,17 @@ class FrancaFileGraphTransformer:
             self._process_file(imported_file.file_path)
 
         # 2. Process the current file
-        # Provides import context while this file's declarations are transformed.
-        transformation_context = FrancaTransformationContext(
-            file_path=parsed_file.file_path,
-            imported_files=parsed_file.imports,
-        )
         if parsed_file.file_path.suffix == ".fidl":
-            transformer = FIDLTransformer(self._transformed_files, transformation_context)
-            file_model = transformer.transform_file(parsed_file)
+            transformer = FIDLTransformer(self._transformed_files, parsed_file)
+            file_model = transformer.transform_file()
             self._pending_datatype_references.extend(transformer.pending_datatype_references)
-        elif parsed_file.file_path.suffix == ".fdepl":
+        elif parsed_file.file_path.suffix in {".fdepl", ".cdepl"}:
             transformer = FDEPLTransformer(
                 self._transformed_files,
-                transformation_context,
+                parsed_file,
+                self._deployment_property_applier,
             )
-            file_model = transformer.transform_file(parsed_file)
+            file_model = transformer.transform_file()
             self._pending_use_definitions.extend(transformer.pending_use_definitions)
         else:
             raise ValueError(f"Unsupported Franca source type: {parsed_file.file_path}")

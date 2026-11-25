@@ -16,6 +16,9 @@
 import unittest
 from pathlib import Path
 
+from score.ecu_model.common.version import Version
+from score.ecu_model.communication.binding import NetworkKind
+from score.ecu_model.communication.service_interface import InterfaceDefinition
 from score.ecu_model.data_types.array import ArrayDataType
 from score.ecu_model.data_types.common import DataTypeSource
 from score.ecu_model.data_types.enum import EnumDataType
@@ -27,6 +30,7 @@ from score.ecu_model.data_types.union import UnionDataType
 from score.parsers.franca_parser.deployment_property_applier import DeploymentPropertyApplier
 from score.parsers.franca_parser.model.fdepl.definition import DeploymentParameter
 from score.parsers.franca_parser.model.fdepl.fdepl_file import FDEPLFileModel
+from score.parsers.franca_parser.model.fdepl.interface_deployment import InterfaceDeployment
 from score.parsers.franca_parser.model.fdepl.specification import (
     DeploymentPropertyType,
     DeploymentPropertyTypeReference,
@@ -53,6 +57,66 @@ TEST_DATA_DIRECTORY = Path(__file__).parent / "test_data"
 
 class DeploymentPropertyApplierTest(unittest.TestCase):
     """Verify deployment properties applied from transformed FDEPL definitions."""
+
+    def test_apply_interface_deployment_sets_service_id_from_inherited_specification(self) -> None:
+        property_name = Identifier("SomeIpServiceID")
+        declaration = ParameterDeclaration(
+            host="interfaces",
+            name=property_name,
+            type_reference=DeploymentPropertyTypeReference(DeploymentPropertyType.INTEGER),
+        )
+        someip = DeploymentSpecification(
+            name=QualifiedName((Identifier("someip"),)),
+            hosts={"interfaces": {property_name.as_str: declaration}},
+        )
+        architecture = DeploymentSpecification(
+            name=QualifiedName((Identifier("architecture"),)),
+            base_specifications=[someip],
+        )
+        target = InterfaceDefinition(
+            name=Identifier("API"),
+            namespace=QualifiedName((Identifier("demo"),)),
+            version=Version(major=1, minor=0, patch=0),
+        )
+        deployment = InterfaceDeployment(
+            target=target,
+            specification=architecture,
+            parameter_set=[DeploymentParameter(name=property_name, value=40)],
+        )
+
+        applier = DeploymentPropertyApplier()
+        applier.apply_interface_deployment(deployment)
+
+        service_interface = applier.service_Interface_map[("demo.API", NetworkKind.SOMEIP)]
+        self.assertEqual(service_interface.service_id, 40)
+
+    def test_apply_interface_deployment_requires_declared_and_direct_service_id(self) -> None:
+        property_name = Identifier("SomeIpServiceID")
+        target = InterfaceDefinition(
+            name=Identifier("API"),
+            namespace=QualifiedName((Identifier("demo"),)),
+            version=Version(major=1, minor=0, patch=0),
+        )
+        specification = DeploymentSpecification(name=QualifiedName((Identifier("someip"),)))
+        deployment = InterfaceDeployment(
+            target=target,
+            specification=specification,
+            parameter_set=[DeploymentParameter(name=property_name, value=40)],
+        )
+        applier = DeploymentPropertyApplier()
+
+        with self.assertRaisesRegex(ValueError, "must declare SomeIpServiceID: Integer for interfaces"):
+            applier.apply_interface_deployment(deployment)
+
+        declaration = ParameterDeclaration(
+            host="interfaces",
+            name=property_name,
+            type_reference=DeploymentPropertyTypeReference(DeploymentPropertyType.INTEGER),
+        )
+        specification.hosts["interfaces"] = {property_name.as_str: declaration}
+        deployment.parameter_set = []
+        with self.assertRaisesRegex(ValueError, "must directly set SomeIpServiceID"):
+            applier.apply_interface_deployment(deployment)
 
     def test_enum_deployment_rejects_a_non_enum_target_before_resolution(self) -> None:
         target = self._typedef_target()
@@ -206,7 +270,10 @@ class DeploymentPropertyApplierTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "Unresolved deployment specification"):
             applier.apply_type_collection_deployment(
-                TypeCollectionDeployment(specification=QualifiedName((Identifier("specification"),)))
+                TypeCollectionDeployment(
+                    target=TypeCollection(name=None),
+                    specification=QualifiedName((Identifier("specification"),)),
+                )
             )
         with self.assertRaisesRegex(ValueError, "Unresolved datatype deployment target"):
             applier._apply_deployment_element(TypedefDeployment(), specification)

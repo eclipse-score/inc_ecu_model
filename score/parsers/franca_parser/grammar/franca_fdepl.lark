@@ -13,7 +13,7 @@
 
 start: fd_model
 
-fd_model: "package" fd_fqn f_imports* (fd_specification | fd_types)+
+fd_model: "package" fd_fqn f_imports* (fd_specification | fd_general)+
 
 f_imports: _import{fd_imported_fqn}
 fd_imported_fqn: _imported_fqn{fd_fqn}
@@ -22,9 +22,10 @@ fd_valid_id: _valid_id{fd_keywords}
 
 fd_keywords: \
       "Boolean" | "Integer" | "Interface" | "String"
-                | "array" | "as" | "default" | "define" | "enumeration" | "extends"
-                | "for" | "import" | "major" | "model" | "namespace" | "optional"
-                | "package" | "specification" | "struct" | "typeCollection"
+                    | "array" | "as" | "attribute" | "broadcast" | "default" | "define"
+                    | "enumeration" | "eventgroup" | "eventgroups" | "extends" | "for" | "import"
+                    | "in" | "major" | "method" | "model" | "namespace" | "optional" | "out"
+                    | "package" | "specification" | "struct" | "typeCollection" | "version"
 
 fd_specification: "specification" fd_fqn ("extends" fd_fqn+)? "{" fd_host_decl* "}"
 fd_host_decl: "for" SIMPLE_NAME "{" fd_parameter_decl* "}"
@@ -46,28 +47,45 @@ fd_value: E_BIGINTEGER -> integer
         | E_BOOLEAN -> boolean
         | fd_valid_id
 
-fd_types: "define" fd_fqn "for" "typeCollection" fd_fqn ("major" E_INTEGER)? ("as" fd_fqn)? "{" fd_use_definition* fd_parameter* fd_type_definition* "}"
+fd_general: f_annotation_block? "define" fd_fqn "for" (fd_types | fd_interface)
+fd_types: "typeCollection" fd_fqn ("major" E_INTEGER)? ("as" fd_fqn)? "{" fd_use_definition* fd_parameter_set? fd_type_definition* "}"
 fd_use_definition: "use" fd_fqn
 fd_type_definition: fd_struct | fd_union | fd_type_def | fd_array | fd_enumeration | fd_map
 fd_struct: "struct" fd_valid_id "{" fd_parameter_value* fd_field* "}"
 fd_union: "union" fd_valid_id "{" fd_parameter_value* fd_field* "}"
-fd_type_def: "typedef" fd_valid_id "{" fd_parameter* "}"
-fd_field: fd_valid_id "{" fd_parameter* fd_type_overwrites? "}"
-fd_array: "array" fd_valid_id "{" fd_parameter* fd_type_overwrites? "}"
+fd_type_def: "typedef" fd_valid_id "{" fd_parameter_set? "}"
+fd_field: fd_valid_id "{" fd_parameter_set? fd_type_overwrites? "}"
+fd_array: "array" fd_valid_id "{" fd_parameter_set? fd_type_overwrites? "}"
 fd_enumeration: "enumeration" fd_valid_id "{" fd_parameter_value* fd_enum_value* "}"
 fd_parameter_value: fd_parameter ","?
-fd_enum_value: fd_valid_id "{" fd_parameter* "}"
-fd_map: "map" fd_valid_id "{" fd_parameter* fd_map_key? fd_map_value? "}"
-fd_map_key: "key" "{" fd_parameter* "}"
-fd_map_value: "value" "{" fd_parameter* "}"
+fd_enum_value: fd_valid_id "{" fd_parameter_set? "}"
+fd_map: "map" fd_valid_id "{" fd_parameter_set? fd_map_key? fd_map_value? "}"
+fd_map_key: "key" "{" fd_parameter_set? "}"
+fd_map_value: "value" "{" fd_parameter_set? "}"
 fd_type_overwrites: "#" fd_plain_type_overwrites | "#struct" fd_struct_overwrites | "#union" fd_union_overwrites | "#enumeration" fd_enumeration_overwrites
-fd_plain_type_overwrites: "{" fd_parameter* "}"
+fd_plain_type_overwrites: "{" fd_parameter_set? "}"
 fd_struct_overwrites: "{" fd_parameter_value* fd_field* "}"
 fd_union_overwrites: "{" fd_parameter_value* fd_field* "}"
 fd_enumeration_overwrites: "{" fd_parameter_value* fd_enum_value* "}"
 fd_parameter: fd_valid_id "=" fd_complex_value
 
-%import .franca_com (_import, _imported_fqn, _fully_qualified_name, _valid_id, f_import_uri, E_INTEGER, E_BIGINTEGER, E_BOOLEAN, ESCAPED_STRING, SIMPLE_NAME, WS, CPP_COMMENT, C_COMMENT)
+fd_version_spec: "major" E_INTEGER
+fd_id_with_selector: _id_with_selector{fd_valid_id}
+fd_parameter_set: fd_parameter (","? fd_parameter)*
+
+fd_interface: "interface" fd_fqn fd_version_spec? ("as" fd_fqn)? "{" fd_use_definition* fd_parameter_set? fd_interface_element* "}"
+fd_interface_element: fd_attribute | fd_method | fd_broadcast | fd_event_group | fd_type_definition
+fd_attribute: "attribute" fd_valid_id "{" fd_event_group_ref? fd_parameter_set? fd_type_overwrites? "}"
+fd_event_group: "eventgroup" fd_valid_id "{" fd_parameter_set? "}"
+fd_event_group_ref: "eventgroups" "{" fd_valid_id* fd_parameter_set? "}"
+fd_method: "method" fd_id_with_selector "{" fd_parameter_set? fd_input_arguments? fd_output_arguments? "}"
+fd_input_arguments: "in" fd_argument_list
+fd_output_arguments: "out" fd_argument_list
+fd_argument_list: "{" fd_argument* "}"
+fd_argument: fd_valid_id "{" fd_parameter_set? fd_type_overwrites? "}"
+fd_broadcast: "broadcast" fd_id_with_selector "{" fd_event_group_ref? fd_parameter_set? fd_output_arguments? "}"
+
+%import .franca_com (_import, _imported_fqn, _fully_qualified_name, _id_with_selector, _valid_id, f_annotation_block, f_import_uri, E_INTEGER, E_BIGINTEGER, E_BOOLEAN, ESCAPED_STRING, SIMPLE_NAME, WS, CPP_COMMENT, C_COMMENT)
 %ignore WS
 %ignore CPP_COMMENT
 %ignore C_COMMENT

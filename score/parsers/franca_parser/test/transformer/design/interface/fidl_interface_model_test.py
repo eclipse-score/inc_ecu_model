@@ -33,7 +33,6 @@ from score.ecu_model.data_types.struct import StructDataType
 from score.ecu_model.model import ModelRegistry
 from score.parsers.franca_parser.model.fidl.fidl_file import FIDLFileModel
 from score.parsers.franca_parser.model.fidl.type_collection import TypeCollection
-from score.parsers.franca_parser.model.franca_file import FrancaTransformationContext
 from score.parsers.franca_parser.parser import FrancaParser
 from score.parsers.franca_parser.transformer.fidl_transformer import FIDLTransformer
 from score.parsers.franca_parser.transformer.file_graph_transformer import FrancaFileGraphTransformer
@@ -77,11 +76,11 @@ class FIDLInterfaceModelTest(unittest.TestCase):
         )
 
     def test_attribute_references_are_registered_under_attribute_owner(self) -> None:
+        source_path = TEST_DATA_DIRECTORY / "shared_models.fidl"
+        parsed_file = FrancaParser([source_path], []).parse_files()[source_path.resolve()]
         for inline_array in (False, True):
             with self.subTest(inline_array=inline_array):
-                transformer = FIDLTransformer(
-                    {}, FrancaTransformationContext(file_path=Path("attribute.fidl"), imported_files=[])
-                )
+                transformer = FIDLTransformer({}, parsed_file)
                 reference = QualifiedName((Identifier("Payload"),))
                 data_type = (
                     ArrayDataType(source_kind=DataTypeSource.FRANCA, data_type=reference, is_inline=True)
@@ -227,9 +226,9 @@ class FIDLInterfaceModelTest(unittest.TestCase):
                     )
 
     def test_callbacks_collect_supported_elements_independently_of_order(self) -> None:
-        transformer = FIDLTransformer(
-            {}, FrancaTransformationContext(file_path=Path("callbacks.fidl"), imported_files=[])
-        )
+        source_path = TEST_DATA_DIRECTORY / "shared_models.fidl"
+        parsed_file = FrancaParser([source_path], []).parse_files()[source_path.resolve()]
+        transformer = FIDLTransformer({}, parsed_file)
         ignored = Tree("unsupported", [])
         input_field = DataTypeField(name="input", data_type=PrimitiveDataType.UINT32)
         output_field = DataTypeField(name="output", data_type=PrimitiveDataType.STRING)

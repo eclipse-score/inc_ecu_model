@@ -15,6 +15,7 @@
 
 from dataclasses import dataclass, field
 
+from score.parsers.franca_parser.model.fdepl.interface_deployment import InterfaceDeployment
 from score.parsers.franca_parser.model.fdepl.specification import (
     DeploymentSpecification,
 )
@@ -30,3 +31,4 @@ class FDEPLFileModel(FrancaFileModel):
 
     specifications: list[DeploymentSpecification] = field(default_factory=list)
     type_collection_deployments: list[TypeCollectionDeployment] = field(default_factory=list)
+    interface_deployments: list[InterfaceDeployment] = field(default_factory=list)

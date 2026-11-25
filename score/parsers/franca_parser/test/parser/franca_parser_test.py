@@ -57,6 +57,52 @@ class FrancaParserTest(unittest.TestCase):
         with self.assertRaisesRegex(FileNotFoundError, "missing_types.fidl.*missing_import.fidl"):
             parser.parse_files()
 
+    def test_general_deployments_preserve_type_collection_and_interface(self) -> None:
+        with TemporaryDirectory() as temp_directory:
+            directory = Path(temp_directory)
+            design_file = directory / "service.fidl"
+            design_file.write_text(
+                "package demo\n"
+                "typeCollection Types { struct Payload { UInt32 value } }\n"
+                "interface API { version { major 1 minor 0 } method ping {} }\n",
+                encoding="utf-8",
+            )
+            for suffix in (".fdepl", ".cdepl"):
+                with self.subTest(suffix=suffix):
+                    deployment_file = directory / f"deployment{suffix}"
+                    deployment_file.write_text(
+                        'package demo.deployment\nimport "service.fidl"\n'
+                        "specification example { for interfaces { Marker: Integer (optional); } }\n"
+                        "define example for typeCollection demo.Types as TypesDeployment {\n"
+                        "    CollectionMarker = 42 struct Payload {}\n"
+                        "}\n"
+                        "define example for interface demo.API major 1 as ApiDeployment {\n"
+                        "    Marker = 7 method ping {}\n"
+                        "}\n",
+                        encoding="utf-8",
+                    )
+                    parser = FrancaParser(root_files=[deployment_file], dependency_files=[design_file])
+                    parsed_files = parser.parse_files()
+                    parse_tree = parsed_files[deployment_file.resolve()].parse_tree
+                    self.assertEqual(len(list(parse_tree.find_data("fd_general"))), 2)
+
+                    transformer = FrancaFileGraphTransformer(parsed_files)
+                    transformer.transform_files()
+                    model = transformer.transformed_files[deployment_file.resolve()]
+                    collection = model.type_collection_deployments[0]
+                    interface = model.interface_deployments[0]
+                    self.assertEqual(collection.specification.name.as_str, "example")
+                    self.assertEqual(collection.target.name.as_str, "Types")
+                    self.assertEqual(collection.name.as_str, "TypesDeployment")
+                    self.assertEqual(collection.parameter_set[0].value, 42)
+                    self.assertEqual(collection.deployment_elements[0].deployed_type.name.as_str, "Payload")
+                    self.assertEqual(interface.specification.name.as_str, "example")
+                    self.assertEqual(interface.target.name.as_str, "API")
+                    self.assertEqual(interface.name.as_str, "ApiDeployment")
+                    self.assertEqual(interface.version.major, 1)
+                    self.assertEqual(interface.parameter_set[0].value, 7)
+                    self.assertEqual(interface.deployment_elements[0].deployed_type.name.as_str, "ping")
+
     def test_preprocess_files_when_preprocessor_not_needed_reads_original_content(self) -> None:
         content = "#if defined(FEATURE)\nkept\n#else\nexcluded\n#endif\n"
         parser = FrancaParser(root_files=[], dependency_files=[])

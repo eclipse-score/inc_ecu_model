@@ -40,7 +40,6 @@ from score.parsers.franca_parser.model.fidl.type_collection import (
 )
 from score.parsers.franca_parser.model.franca_file import (
     FrancaFileModel,
-    FrancaTransformationContext,
 )
 from score.parsers.franca_parser.model.parsed_file import ParsedFile
 from score.parsers.franca_parser.transformer.base_transformer import (
@@ -78,12 +77,12 @@ class FIDLTransformer(FrancaFileTransformer):
     def __init__(
         self,
         transformed_files: dict[object, FrancaFileModel],
-        transformation_context: FrancaTransformationContext,
+        parsed_file: ParsedFile,
     ) -> None:
         """Create a transformer with declarations visible from completed imports."""
         super().__init__()
         self._import_resolver = FIDLDataTypeResolver(transformed_files)
-        self._transformation_context = transformation_context
+        self._parsed_file = parsed_file
         self._pending_datatype_references_by_declaration: dict[int, list[PendingDatatypeReference]] = {}
         self._pending_datatype_references: list[PendingDatatypeReference] = []
 
@@ -92,12 +91,10 @@ class FIDLTransformer(FrancaFileTransformer):
         """Return datatype references unresolved after local FIDL resolution."""
         return self._pending_datatype_references
 
-    def transform_file(self, parsed_file: ParsedFile) -> FIDLFileModel:
+    def transform_file(self) -> FIDLFileModel:
         """Produce the file model available to dependent FIDL transformations."""
 
-        file_model = self.transform(parsed_file.parse_tree)
-        file_model.file_path = parsed_file.file_path
-        file_model.imported_files = parsed_file.imports
+        file_model = self.transform(self._parsed_file.parse_tree)
         self._apply_declaration_metadata(file_model)
         return file_model
 
@@ -205,14 +202,14 @@ class FIDLTransformer(FrancaFileTransformer):
                 continue
             name = element.name.as_str
             if name in used_valid_ids:
-                raise ValueError(f"Duplicate ID {name} found in {self._transformation_context.file_path}")
+                raise ValueError(f"Duplicate ID {name} found in {self._parsed_file.file_path}")
             used_valid_ids.add(name)
 
         # 2. Build the FIDL file model
         file_model = FIDLFileModel(
-            file_path=self._transformation_context.file_path,
+            file_path=self._parsed_file.file_path,
             namespace=package,
-            imported_files=self._transformation_context.imported_files,
+            imported_files=self._parsed_file.imports,
             type_collections=type_collections,
             interfaces=interfaces,
         )
@@ -252,8 +249,7 @@ class FIDLTransformer(FrancaFileTransformer):
         """Unwrap one FIDL datatype declaration."""
         if isinstance(datatype, PrimitiveDataType):
             raise ValueError(
-                "Bare FIDL primitive datatype declarations are not supported "
-                f"in {self._transformation_context.file_path}"
+                f"Bare FIDL primitive datatype declarations are not supported in {self._parsed_file.file_path}"
             )
         return datatype
 
@@ -271,7 +267,7 @@ class FIDLTransformer(FrancaFileTransformer):
     @v_args(inline=True)
     def interval(self, _interval: object) -> object:
         """Reject unsupported FIDL integer interval types."""
-        raise ValueError(f"FIDL Integer intervals are not supported in {self._transformation_context.file_path}")
+        raise ValueError(f"FIDL Integer intervals are not supported in {self._parsed_file.file_path}")
 
     @v_args(inline=True)
     def fi_type_def(self, *elements: object) -> TypedefDataType:
@@ -559,12 +555,10 @@ class FIDLTransformer(FrancaFileTransformer):
         )
         name = next((element for element in elements if isinstance(element, Identifier)), None)
         if name is None:
-            raise ValueError(f"Interface requires a name in {self._transformation_context.file_path}")
+            raise ValueError(f"Interface requires a name in {self._parsed_file.file_path}")
         version = next((element for element in elements if isinstance(element, Version)), None)
         if version is None:
-            raise ValueError(
-                f"Interface '{name}' requires an explicit version in {self._transformation_context.file_path}"
-            )
+            raise ValueError(f"Interface '{name}' requires an explicit version in {self._parsed_file.file_path}")
 
         methods: dict[SelectableIdentifier, Method] = {}
         broadcasts: dict[SelectableIdentifier, Broadcast] = {}
@@ -576,9 +570,7 @@ class FIDLTransformer(FrancaFileTransformer):
                 continue
             element_name = element.name.as_str
             if element_name in used_member_names:
-                raise ValueError(
-                    f"Duplicate interface member '{element_name}' in {self._transformation_context.file_path}"
-                )
+                raise ValueError(f"Duplicate interface member '{element_name}' in {self._parsed_file.file_path}")
             used_member_names.add(element_name)
 
             if isinstance(element, Method):
@@ -636,7 +628,7 @@ class FIDLTransformer(FrancaFileTransformer):
     def _validate_parameter_names(self, name: SelectableIdentifier, arguments: list[DataTypeField]) -> None:
         """Require unique parameter names within one input or output block."""
         if len({argument.name for argument in arguments}) != len(arguments):
-            raise ValueError(f"Duplicate parameter in '{name}' ({self._transformation_context.file_path})")
+            raise ValueError(f"Duplicate parameter in '{name}' ({self._parsed_file.file_path})")
 
     @v_args(inline=True)
     def fi_method(self, *elements: object) -> Method:
@@ -651,7 +643,7 @@ class FIDLTransformer(FrancaFileTransformer):
         )
         name = next((element for element in elements if isinstance(element, SelectableIdentifier)), None)
         if name is None:
-            raise ValueError(f"Method requires a name in {self._transformation_context.file_path}")
+            raise ValueError(f"Method requires a name in {self._parsed_file.file_path}")
         fire_and_forget = any(element is True for element in elements)
         inputs = next((element[1] for element in elements if isinstance(element, tuple) and element[0] == "inputs"), [])
         outputs = next(
@@ -704,7 +696,7 @@ class FIDLTransformer(FrancaFileTransformer):
         )
         name = next((element for element in elements if isinstance(element, SelectableIdentifier)), None)
         if name is None:
-            raise ValueError(f"Broadcast requires a name in {self._transformation_context.file_path}")
+            raise ValueError(f"Broadcast requires a name in {self._parsed_file.file_path}")
         selective = any(element is True for element in elements)
         outputs = next(
             (element[1] for element in elements if isinstance(element, tuple) and element[0] == "outputs"), []
@@ -748,10 +740,10 @@ class FIDLTransformer(FrancaFileTransformer):
         )
         declaration = next((element for element in elements if isinstance(element, DataTypeField)), None)
         if declaration is None:
-            raise ValueError(f"Attribute requires a type and name in {self._transformation_context.file_path}")
+            raise ValueError(f"Attribute requires a type and name in {self._parsed_file.file_path}")
         qualifiers = next((element for element in elements if isinstance(element, set)), None)
         if qualifiers is None:
-            raise ValueError(f"Attribute requires an access qualifier node in {self._transformation_context.file_path}")
+            raise ValueError(f"Attribute requires an access qualifier node in {self._parsed_file.file_path}")
 
         attribute = Attribute(
             name=declaration.name,
