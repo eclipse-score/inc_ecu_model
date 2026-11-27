@@ -52,6 +52,7 @@ class FrancaParser:
         self._grammar_names = {
             ".fidl": "franca_fidl.lark",
             ".fdepl": "franca_fdepl.lark",
+            ".cdepl": "franca_fdepl.lark",
         }
         self._parsers: dict[str, Lark] = {}
         self._defined = defined or []

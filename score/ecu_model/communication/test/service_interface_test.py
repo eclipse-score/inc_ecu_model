@@ -200,15 +200,16 @@ class TestServiceInterface(unittest.TestCase):
         service_interface = ServiceInterface(
             name="VehicleStateDeployment",
             design_element=InterfaceDefinition(name="VehicleState", version=Version()),
-            deployment_properties={"event_id": 1},
+            interface_deployment_properties={"event_id": 1},
         )
-        self.assertEqual(service_interface.deployment_properties, {"event_id": 1})
+        self.assertEqual(service_interface.interface_deployment_properties, {"event_id": 1})
+        self.assertNotIn("deployment_properties", service_interface.model_dump())
 
         with self.assertRaises(ValidationError):
             ServiceInterface(
                 name="VehicleStateDeployment",
                 design_element=InterfaceDefinition(name="VehicleState", version=Version()),
-                deployment_properties={" ": 1},
+                interface_deployment_properties={" ": 1},
             )
 
         with self.assertRaises(ValidationError):
@@ -224,17 +225,17 @@ class TestServiceInterface(unittest.TestCase):
             name="VehicleStateDeployment",
             namespace="deployment.sub",
             design_element=design,
-            deployment_properties={"timeout_ms": 100},
+            interface_deployment_properties={"timeout_ms": 100},
         )
         self.assertEqual(service_interface.namespace.as_str, "deployment.sub")
-        self.assertEqual(service_interface.deployment_properties, {"timeout_ms": 100})
+        self.assertEqual(service_interface.interface_deployment_properties, {"timeout_ms": 100})
 
     def test_deployment_property_names_must_not_be_empty(self) -> None:
         with self.assertRaises(ValidationError):
             ServiceInterface(
                 name="VehicleStateDeployment",
                 design_element=InterfaceDefinition(name="VehicleState", version=Version()),
-                deployment_properties={" ": "invalid"},
+                interface_deployment_properties={" ": "invalid"},
             )
 
     def test_members_store_names_without_identity_or_selector_fields(self) -> None:

@@ -17,7 +17,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from score.ecu_model.data_types.identifier import QualifiedName
 from score.parsers.franca_parser.model.fdepl.definition import (
     DeploymentDefinition,
     DeploymentElement,
@@ -110,7 +109,7 @@ class EnumOverwrites(TypeOverwrites):
     enumerators: list[EnumValueDeployment] = field(default_factory=list)
 
 
-TypeCollectionDatatypeDeployment = (
+DatatypeDeployment = (
     TypedefDeployment | ArrayDeployment | EnumerationDeployment | StructDeployment | UnionDeployment | MapDeployment
 )
 
@@ -119,6 +118,6 @@ TypeCollectionDatatypeDeployment = (
 class TypeCollectionDeployment(DeploymentDefinition):
     """Deployment definition targeting a FIDL type collection."""
 
-    target: TypeCollection | QualifiedName | None = None
+    target: TypeCollection = field(kw_only=True)
     version_major: int | None = None
-    deployment_elements: list[TypeCollectionDatatypeDeployment] = field(default_factory=list)
+    deployment_elements: list[DatatypeDeployment] = field(default_factory=list)

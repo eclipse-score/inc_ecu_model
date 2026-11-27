@@ -16,6 +16,7 @@ from __future__ import annotations
 from pydantic import Field, field_validator, model_validator
 
 from score.ecu_model.common.version import Version
+from score.ecu_model.communication.binding import CommunicationBinding
 from score.ecu_model.data_types.common import DataTypeBase, DataTypeOrReference, DataTypeReference
 from score.ecu_model.data_types.composite import DataTypeField
 from score.ecu_model.data_types.enum import EnumDataType
@@ -111,9 +112,10 @@ class ServiceInterface(RegisteredModelElement):
     name: Identifier
     namespace: QualifiedName = Field(default_factory=QualifiedName)
     design_element: InterfaceDefinition
+    deployment_binding: CommunicationBinding | None = None
     service_id: int | None = Field(default=None, ge=0, strict=True)
-    deployment_properties: dict[str, object] = Field(default_factory=dict)
     interface_deployment_properties: dict[str, object] = Field(default_factory=dict)
+    event_groups: dict[Identifier, dict[str, object]] = Field(default_factory=dict)
     broadcast_deployment_properties: dict[SelectableIdentifier, dict[str, object]] = Field(default_factory=dict)
     attribute_deployment_properties: dict[Identifier, dict[str, object]] = Field(default_factory=dict)
     method_deployment_properties: dict[SelectableIdentifier, dict[str, object]] = Field(default_factory=dict)
@@ -131,8 +133,8 @@ class ServiceInterface(RegisteredModelElement):
         return data
 
     @field_validator(
-        "deployment_properties",
         "interface_deployment_properties",
+        "event_groups",
         "broadcast_deployment_properties",
         "attribute_deployment_properties",
         "method_deployment_properties",

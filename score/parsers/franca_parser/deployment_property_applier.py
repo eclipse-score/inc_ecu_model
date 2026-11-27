@@ -16,6 +16,8 @@
 import logging
 from typing import cast
 
+from score.ecu_model.communication.binding import CommunicationBinding, NetworkKind, ProtocolKind
+from score.ecu_model.communication.service_interface import InterfaceDefinition, ServiceInterface
 from score.ecu_model.data_types.common import DataTypeBase
 from score.ecu_model.data_types.composite import DataTypeField
 from score.ecu_model.data_types.enum import EnumDataType
@@ -23,6 +25,14 @@ from score.ecu_model.data_types.identifier import Identifier
 from score.parsers.franca_parser.model.fdepl.definition import (
     DeploymentElement,
     DeploymentParameter,
+)
+from score.parsers.franca_parser.model.fdepl.interface_deployment import (
+    ArgumentDeployment,
+    AttributeDeployment,
+    BroadcastDeployment,
+    EventGroup,
+    InterfaceDeployment,
+    MethodDeployment,
 )
 from score.parsers.franca_parser.model.fdepl.specification import (
     DeploymentPropertyType,
@@ -58,18 +68,40 @@ class DeploymentPropertyApplier:
         2: (16, False),
         4: (32, False),
     }
-    _DEFAULT_SOMEIP_ENUM_WIDTH = 1
-    _FALLBACK_ENUM_BACKING_TYPE = "UInt64"
+    _SERVICE_ID_PROPERTIES = {
+        NetworkKind.SOMEIP: "SomeIpServiceID",
+        NetworkKind.IPC: "IpcServiceId",
+    }
+    # TODO: Legacy maps every field deployment to these hosts regardless of its
+    # resolved datatype. Preserve that behavior until datatype-aware selection is specified.
+    _FIELD_HOSTS = {"arrays", "strings", "numbers", "integers", "floats", "booleans"}
     _HOSTS_BY_DEPLOYMENT_TYPE = {
+        InterfaceDeployment: {"interfaces"},
+        EventGroup: {"event_groups"},
         TypedefDeployment: {"typedefs", "strings"},
         ArrayDeployment: {"arrays", "strings"},
         StructDeployment: {"structs"},
         UnionDeployment: {"unions"},
         EnumerationDeployment: {"enumerations"},
+        AttributeDeployment: {
+            "attributes",
+            "attribute_getters",
+            "attribute_setters",
+            "attribute_notifiers",
+            *_FIELD_HOSTS,
+        },
+        BroadcastDeployment: {"broadcasts"},
+        MethodDeployment: {"methods"},
     }
-    # TODO: Legacy maps every field deployment to these hosts regardless of its
-    # resolved datatype. Preserve that behavior until datatype-aware selection is specified.
-    _FIELD_HOSTS = {"arrays", "strings", "numbers", "integers", "floats", "booleans"}
+
+    def __init__(self) -> None:
+        self._service_interface_map: dict[tuple[str, NetworkKind], ServiceInterface] = {}
+
+    @property
+    def service_Interface_map(self) -> dict[tuple[str, NetworkKind], ServiceInterface]:
+        return self._service_interface_map
+
+    # maintain somip/ipc for service interface mapping
 
     def apply_type_collection_deployment(self, deployment: TypeCollectionDeployment) -> None:
         """Apply a resolved FDEPL type-collection deployment to its FIDL target."""
@@ -79,15 +111,210 @@ class DeploymentPropertyApplier:
         for deployment_element in deployment.deployment_elements:
             self._apply_deployment_element(deployment_element, specification)
 
+    def apply_interface_deployment(self, deployment: InterfaceDeployment) -> None:
+        """Merge a resolved interface deployment into its binding-specific public model."""
+        specification = deployment.specification
+        if not isinstance(specification, DeploymentSpecification):
+            raise ValueError("Unresolved deployment specification")
+        target = deployment.target
+        if not isinstance(target, InterfaceDefinition):
+            raise ValueError("Unresolved interface deployment target")
+        interface_key = target.fully_qualified_name
+        network = self._network_for_specification(specification)
+        if network is None:
+            return
+        service_id = self._service_id_for_deployment(deployment, specification, network)
+
+        key = (interface_key, network)
+        service_interface = self._service_interface_map.get(key)
+        if service_interface is None:
+            binding = CommunicationBinding(protocol=ProtocolKind.ARA_COM, network=network)
+            service_interface = ServiceInterface(
+                name=target.name,
+                namespace=target.namespace,
+                design_element=target,
+                deployment_binding=binding,
+                service_id=service_id,
+                broadcast_deployment_properties={name: {} for name in target.broadcasts},
+                attribute_deployment_properties={name: {} for name in target.attributes},
+                method_deployment_properties={name: {} for name in target.methods},
+            )
+            self._service_interface_map[key] = service_interface
+        else:
+            service_interface.service_id = service_id
+        self._apply_deployment_element(deployment, specification, service_interface)
+
+    def _service_id_for_deployment(
+        self,
+        deployment: InterfaceDeployment,
+        specification: DeploymentSpecification,
+        network: NetworkKind,
+    ) -> int:
+        property_name = self._SERVICE_ID_PROPERTIES[network]
+        declaration = self._declarations_for_hosts(specification, {"interfaces"}).get(property_name)
+        if declaration is None:
+            raise ValueError(
+                f"Deployment specification {specification.name.as_str} must declare "
+                f"{property_name}: Integer for interfaces"
+            )
+        if (
+            declaration.type_reference.property_type is not DeploymentPropertyType.INTEGER
+            or declaration.type_reference.is_array
+        ):
+            raise ValueError(f"Deployment property {property_name} must be declared as Integer")
+
+        parameter = next(
+            (parameter for parameter in reversed(deployment.parameter_set) if parameter.name.as_str == property_name),
+            None,
+        )
+        if parameter is None:
+            raise ValueError(f"Interface deployment must directly set {property_name}")
+        self._validate_value(parameter.value, declaration)
+        return cast(int, self._normalize_value(parameter.value, declaration))
+
+    @classmethod
+    def _network_for_specification(cls, specification: DeploymentSpecification) -> NetworkKind | None:
+        """Find the supported network named by a specification or any inherited specification."""
+        networks: set[NetworkKind] = set()
+
+        def collect(current: DeploymentSpecification) -> None:
+            name = current.name.names[-1].as_str if current.name.names else ""
+            if name == "someip":
+                networks.add(NetworkKind.SOMEIP)
+            elif name == "ipc":
+                networks.add(NetworkKind.IPC)
+            for base in current.base_specifications:
+                if not isinstance(base, DeploymentSpecification):
+                    raise ValueError("Unresolved base deployment specification")
+                collect(base)
+
+        collect(specification)
+        if len(networks) > 1:
+            raise ValueError(
+                f"Deployment specification {specification.name.as_str} inherits both someip and ipc bindings"
+            )
+        return next(iter(networks), None)
+
+    def _apply_event_group_reference(
+        self,
+        reference: object | None,
+        specification: DeploymentSpecification,
+        member_properties: dict[str, object],
+    ) -> None:
+        """Preserve legacy spec-scoped event-group data on the referencing member."""
+        if reference is None or not reference.used_event_groups:
+            return
+        group_properties: dict[str, object] = {}
+        for group in reference.used_event_groups:
+            if group.name is None:
+                raise ValueError("Event group reference requires a name")
+            properties: dict[str, object] = {}
+            self._apply_parameters(
+                group, group.parameter_set, specification, self._HOSTS_BY_DEPLOYMENT_TYPE[EventGroup], properties
+            )
+            group_properties[group.name.as_str] = properties
+        member_properties[f"event_groups#{specification.name.as_str}"] = group_properties
+
+    def _apply_argument_deployments(
+        self,
+        arguments: dict[Identifier, ArgumentDeployment],
+        specification: DeploymentSpecification,
+        member_properties: dict[str, object],
+        direction: str,
+    ) -> None:
+        if not arguments:
+            return
+        argument_properties = cast(
+            dict[str, dict[str, object]], member_properties.setdefault(f"{direction}#arguments", {})
+        )
+        for name, argument in arguments.items():
+            self._apply_parameters(
+                argument.deployed_type,
+                argument.parameter_set,
+                specification,
+                self._FIELD_HOSTS,
+                argument_properties.setdefault(name.as_str, {}),
+            )
+
     def _apply_deployment_element(
         self,
-        deployment: DeploymentElement,
+        deployment: DeploymentElement | InterfaceDeployment,
         specification: DeploymentSpecification,
+        service_interface: ServiceInterface | None = None,
     ) -> None:
         hosts = self._HOSTS_BY_DEPLOYMENT_TYPE.get(type(deployment))
         if hosts is None:
             return
+        if isinstance(deployment, InterfaceDeployment):
+            if service_interface is None:
+                raise ValueError("Interface deployment requires a service interface")
+            self._apply_parameters(
+                service_interface,
+                deployment.parameter_set,
+                specification,
+                hosts,
+                service_interface.interface_deployment_properties,
+            )
+            for element in deployment.deployment_elements:
+                if isinstance(element, EventGroup):
+                    self._apply_deployment_element(element, specification, service_interface)
+            for element in deployment.deployment_elements:
+                if not isinstance(element, EventGroup):
+                    self._apply_deployment_element(element, specification, service_interface)
+            return
+        if isinstance(deployment, EventGroup):
+            if service_interface is None:
+                raise ValueError("Interface deployment requires a service interface")
+            if deployment.name is None:
+                raise ValueError("Event group deployment requires a name")
+            if deployment.name in service_interface.event_groups:
+                self._apply_parameters(deployment, deployment.parameter_set, specification, hosts, {})
+            properties = service_interface.event_groups.setdefault(deployment.name, {})
+            self._apply_parameters(
+                deployment,
+                deployment.parameter_set,
+                specification,
+                hosts,
+                properties,
+            )
+            return
+        if isinstance(deployment, AttributeDeployment):
+            if service_interface is None:
+                raise ValueError("Interface deployment requires a service interface")
+            target = deployment.deployed_type
+            if target is None:
+                raise ValueError("Unresolved attribute deployment target")
+            properties = service_interface.attribute_deployment_properties[target.name]
+            self._apply_parameters(
+                target,
+                deployment.parameter_set,
+                specification,
+                hosts,
+                properties,
+            )
+            self._apply_event_group_reference(deployment.event_groups, specification, properties)
+            return
         target = deployment.deployed_type
+        if isinstance(deployment, BroadcastDeployment):
+            if target is None:
+                raise ValueError("Unresolved broadcast deployment target")
+            if service_interface is None:
+                raise ValueError("Interface deployment requires a service interface")
+            properties = service_interface.broadcast_deployment_properties[target.name]
+            self._apply_parameters(target, deployment.parameter_set, specification, hosts, properties)
+            self._apply_event_group_reference(deployment.event_groups, specification, properties)
+            self._apply_argument_deployments(deployment.outputs, specification, properties, "outputs")
+            return
+        if isinstance(deployment, MethodDeployment):
+            if target is None:
+                raise ValueError("Unresolved method deployment target")
+            if service_interface is None:
+                raise ValueError("Interface deployment requires a service interface")
+            properties = service_interface.method_deployment_properties[target.name]
+            self._apply_parameters(target, deployment.parameter_set, specification, hosts, properties)
+            self._apply_argument_deployments(deployment.inputs, specification, properties, "inputs")
+            self._apply_argument_deployments(deployment.outputs, specification, properties, "outputs")
+            return
         if not isinstance(target, DataTypeBase):
             raise ValueError("Unresolved datatype deployment target")
         self._apply_parameters(target, deployment.parameter_set, specification, hosts)
@@ -117,26 +344,26 @@ class DeploymentPropertyApplier:
             if storage is None:
                 raise ValueError(f"Unsupported EnumBackingType value {backing_type!r}")
         else:
-            someip_width = target.deployment_properties.get("SomeIpEnumWidth", cls._DEFAULT_SOMEIP_ENUM_WIDTH)
+            someip_width = target.deployment_properties.get("SomeIpEnumWidth", 1)
             if not isinstance(someip_width, int) or isinstance(someip_width, bool):
                 raise ValueError(
                     f"Unsupported SomeIpEnumWidth value {someip_width!r}: "
                     f"expected int, got {type(someip_width).__name__}"
                 )
-            storage = cls._SOMEIP_ENUM_WIDTHS.get(
-                someip_width, cls._ENUM_BACKING_TYPES[cls._FALLBACK_ENUM_BACKING_TYPE]
-            )
+            storage = cls._SOMEIP_ENUM_WIDTHS.get(someip_width, cls._ENUM_BACKING_TYPES["UInt64"])
         target.size, target.signed = storage
 
     def _apply_parameters(
         self,
-        target: DataTypeBase | DataTypeField,
+        target: object,
         parameters: list[DeploymentParameter],
         specification: DeploymentSpecification,
         hosts: set[str],
+        applied_properties: dict[str, object] | None = None,
     ) -> None:
         declarations = self._declarations_for_hosts(specification, hosts)
-        applied_properties = target.deployment_properties
+        if applied_properties is None:
+            applied_properties = target.deployment_properties
         for parameter in parameters:
             declaration = declarations.get(parameter.name.as_str)
             if declaration is None:

@@ -13,25 +13,34 @@
 
 """Resolve FDEPL references against transformed Franca file models."""
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from score.ecu_model.data_types.common import DataTypeKind
+from score.ecu_model.communication.service_interface import InterfaceDefinition
+from score.ecu_model.data_types.common import DataTypeBase, DataTypeKind
 from score.ecu_model.data_types.identifier import QualifiedName
+from score.parsers.franca_parser.model.fdepl.definition import DeploymentDefinition
 from score.parsers.franca_parser.model.fdepl.fdepl_file import (
     FDEPLFileModel,
+)
+from score.parsers.franca_parser.model.fdepl.interface_deployment import (
+    AttributeDeployment,
+    BroadcastDeployment,
+    EventGroup,
+    InterfaceDeployment,
+    MethodDeployment,
 )
 from score.parsers.franca_parser.model.fdepl.specification import (
     DeploymentSpecification,
 )
 from score.parsers.franca_parser.model.fdepl.type_collection_deployment import (
     ArrayDeployment,
+    DatatypeDeployment,
     EnumerationDeployment,
     EnumValueDeployment,
     MapDeployment,
     StructDeployment,
-    TypeCollectionDatatypeDeployment,
     TypeCollectionDeployment,
     TypedefDeployment,
     UnionDeployment,
@@ -44,9 +53,13 @@ from score.parsers.franca_parser.model.fidl.type_collection import (
 )
 from score.parsers.franca_parser.model.franca_file import (
     FrancaFileModel,
+    ImportedNamespace,
 )
 from score.parsers.franca_parser.transformer.resolver.utils_resolver import (
     matches_use_definition_reference,
+    resolve_from_imported,
+    resolve_from_local,
+    select_single_match,
 )
 
 
@@ -55,7 +68,7 @@ class PendingUseDefinition:
     """An unresolved use reference in one type-collection deployment."""
 
     reference: QualifiedName
-    deployment: TypeCollectionDeployment
+    deployment: DeploymentDefinition
     index: int
     owning_file: FDEPLFileModel
 
@@ -102,11 +115,12 @@ class FDEPLResolver:
     def resolve_type_collection(
         self,
         reference: QualifiedName,
-        owning_file: FDEPLFileModel,
+        imports: Iterable[ImportedNamespace],
+        file_path: Path,
     ) -> TypeCollection:
         """Resolve one imported FIDL type collection or raise a contextual error."""
         matches: list[TypeCollection] = []
-        for imported_namespace in owning_file.imported_files:
+        for imported_namespace in imports:
             imported_file = self._files.get(imported_namespace.file_path)
             if not isinstance(imported_file, FIDLFileModel) or imported_file.namespace is None:
                 continue
@@ -121,8 +135,186 @@ class FDEPLResolver:
         if len(matches) == 1:
             return matches[0]
         if not matches:
-            raise ValueError(f"Could not resolve FIDL type collection {reference.as_str} in {owning_file.file_path}")
-        raise ValueError(f"Ambiguous FIDL type collection {reference.as_str} in {owning_file.file_path}")
+            raise ValueError(f"Could not resolve FIDL type collection {reference.as_str} in {file_path}")
+        raise ValueError(f"Ambiguous FIDL type collection {reference.as_str} in {file_path}")
+
+    def resolve_interface(
+        self,
+        reference: QualifiedName,
+        imports: Iterable[ImportedNamespace],
+        file_path: Path,
+    ) -> InterfaceDefinition:
+        """Resolve one interface target from the FIDL files imported by an FDEPL file."""
+        return select_single_match(
+            resolve_from_imported(
+                reference,
+                imports,
+                self._files,
+                FIDLFileModel,
+                lambda imported_reference, imported_file, imported_namespace: resolve_from_local(
+                    imported_reference,
+                    imported_file.interfaces,
+                    imported_file.namespace,
+                    lambda interface: interface.name,
+                    imported_namespace=imported_namespace,
+                ),
+            ),
+            not_found_message=f"Could not resolve FIDL interface {reference.as_str} in {file_path}",
+            ambiguous_message=f"Ambiguous FIDL interface {reference.as_str} in {file_path}",
+            required=True,
+        )
+
+    @staticmethod
+    def _resolve_interface_member(reference: object, members: object, kind: str, file_path: Path) -> object:
+        """Resolve a named deployment member against one interface member collection."""
+        reference_name = getattr(reference, "as_str", str(reference))
+        candidates = members.values() if isinstance(members, dict) else members
+        for member in candidates:
+            if member.name.as_str == reference_name:
+                return member
+        raise ValueError(f"Could not resolve FIDL {kind} {reference_name} in {file_path}")
+
+    def resolve_interface_deployment_elements(
+        self,
+        deployment: InterfaceDeployment,
+        owning_file: FDEPLFileModel,
+    ) -> None:
+        """Bind interface deployment members, arguments, event groups, and local datatypes."""
+        target = deployment.target
+        if not isinstance(target, InterfaceDefinition):
+            raise ValueError("Unresolved interface deployment target")
+        event_groups = {
+            element.name.as_str: element
+            for element in deployment.deployment_elements
+            if isinstance(element, EventGroup) and element.name is not None
+        }
+
+        for element in deployment.deployment_elements:
+            if isinstance(element, EventGroup):
+                if element.name is None:
+                    raise ValueError("Event group deployment requires a name")
+            elif isinstance(element, AttributeDeployment):
+                element.deployed_type = self._resolve_interface_member(
+                    element.deployed_type,
+                    target.attributes,
+                    "attribute",
+                    owning_file.file_path,
+                )
+                self._resolve_event_group_references(element.event_groups, event_groups, owning_file.file_path)
+            elif isinstance(element, MethodDeployment):
+                element.deployed_type = self._resolve_interface_member(
+                    element.deployed_type,
+                    target.methods,
+                    "method",
+                    owning_file.file_path,
+                )
+                method = element.deployed_type
+                element.inputs = self._resolve_argument_deployments(
+                    element.inputs,
+                    method.inputs,
+                    owning_file.file_path,
+                )
+                element.outputs = self._resolve_argument_deployments(
+                    element.outputs,
+                    method.outputs,
+                    owning_file.file_path,
+                )
+            elif isinstance(element, BroadcastDeployment):
+                element.deployed_type = self._resolve_interface_member(
+                    element.deployed_type,
+                    target.broadcasts,
+                    "broadcast",
+                    owning_file.file_path,
+                )
+                element.outputs = self._resolve_argument_deployments(
+                    element.outputs,
+                    element.deployed_type.outputs,
+                    owning_file.file_path,
+                )
+                self._resolve_event_group_references(element.event_groups, event_groups, owning_file.file_path)
+            elif isinstance(element, DatatypeDeployment):
+                self._resolve_interface_datatype(element, target, owning_file)
+
+    def _resolve_interface_datatype(
+        self,
+        deployment: DatatypeDeployment,
+        interface: InterfaceDefinition,
+        owning_file: FDEPLFileModel,
+    ) -> None:
+        # Follow legacy lookup for bare names: imported anonymous collections before interface-local types.
+        # Skip named collections because they require a collection-qualified reference.
+        # Keep the last import per path and first match per file; reject cross-file ambiguity.
+        def find_dt_from_anonymous_tc(
+            reference: QualifiedName,
+            imported_file: FIDLFileModel,
+            imported_namespace: QualifiedName | None,
+        ) -> list[DataTypeBase]:
+            """Match a bare name in imported anonymous type collections."""
+            return resolve_from_local(
+                reference,
+                (
+                    datatype
+                    for collection in imported_file.type_collections
+                    if collection.name is None
+                    for datatype in collection.datatypes
+                ),
+                imported_file.namespace,
+                lambda datatype: datatype.name,
+                imported_namespace=imported_namespace,
+            )[:1]
+
+        reference = QualifiedName((deployment.deployed_type,))
+        imports_by_path = {
+            imported.file_path: imported
+            for imported in owning_file.imported_files
+            if str(imported.file_path).endswith("fidl")
+        }
+        imported_datatype = select_single_match(
+            resolve_from_imported(
+                reference, imports_by_path.values(), self._files, FIDLFileModel, find_dt_from_anonymous_tc
+            ),
+            not_found_message=f"Could not resolve FIDL datatype {reference.as_str} in {owning_file.file_path}",
+            ambiguous_message=f"Ambiguous FIDL datatype {reference.as_str} in {owning_file.file_path}",
+        )
+        datatypes = [imported_datatype] if imported_datatype is not None else interface.datatypes
+        self._resolve_datatype(deployment, TypeCollection(name=None, datatypes=datatypes), owning_file)
+
+    @classmethod
+    def _resolve_argument_deployments(
+        cls,
+        deployments: dict[object, object],
+        arguments: object,
+        file_path: Path,
+    ) -> dict[object, object]:
+        """Resolve argument deployment names to the interface's DataTypeField models."""
+        resolved: dict[object, object] = {}
+        for deployment in deployments.values():
+            deployment.deployed_type = cls._resolve_interface_member(
+                deployment.deployed_type,
+                arguments,
+                "argument",
+                file_path,
+            )
+            resolved[deployment.deployed_type.name] = deployment
+        return resolved
+
+    @staticmethod
+    def _resolve_event_group_references(
+        reference: object | None,
+        event_groups: dict[str, EventGroup],
+        file_path: Path,
+    ) -> None:
+        """Resolve event-group names within the containing interface deployment block."""
+        if reference is None:
+            return
+        resolved_groups: list[EventGroup] = []
+        for unresolved in reference.used_event_groups:
+            name = unresolved.name.as_str if unresolved.name is not None else ""
+            event_group = event_groups.get(name)
+            if event_group is None:
+                raise ValueError(f"Could not resolve event group {name} in {file_path}")
+            resolved_groups.append(event_group)
+        reference.used_event_groups = resolved_groups
 
     def resolve_datatype_deployments(
         self,
@@ -141,44 +333,48 @@ class FDEPLResolver:
         self,
         reference: QualifiedName,
         owning_file: FDEPLFileModel,
-    ) -> TypeCollectionDeployment | None:
-        """Resolve a local or transformed-import use reference when visible."""
-        matches = [
-            deployment
-            for deployment in owning_file.type_collection_deployments
-            if deployment.name is not None
-            and matches_use_definition_reference(
+    ) -> DeploymentDefinition | None:
+        """Resolve a local or transformed-import type-collection or interface use reference."""
+        local_groups = (owning_file.type_collection_deployments, owning_file.interface_deployments)
+        for declarations in local_groups:
+            matches = resolve_from_local(
                 reference,
-                deployment.name,
+                (deployment for deployment in declarations if deployment.name is not None),
                 owning_file.namespace,
+                lambda deployment: deployment.name,
+                matcher=matches_use_definition_reference,
             )
-        ]
+            resolved = select_single_match(
+                matches,
+                not_found_message=f"Could not resolve FDEPL use definition {reference.as_str} in {owning_file.file_path}",
+                ambiguous_message=f"Ambiguous FDEPL use definition {reference.as_str} in {owning_file.file_path}",
+            )
+            if resolved is not None:
+                return resolved
         for imported_namespace in owning_file.imported_files:
             imported_file = self._files.get(imported_namespace.file_path)
             if isinstance(imported_file, FDEPLFileModel):
-                matches.extend(
-                    [
-                        deployment
-                        for deployment in imported_file.type_collection_deployments
-                        if deployment.name is not None
-                        and matches_use_definition_reference(
-                            reference,
-                            deployment.name,
-                            imported_file.namespace,
-                            imported_namespace.namespace,
-                        )
-                    ]
-                )
-        distinct_matches = list({id(match): match for match in matches}.values())
-        if len(distinct_matches) == 1:
-            return distinct_matches[0]
-        if not distinct_matches:
-            return None
-        raise ValueError(f"Ambiguous FDEPL use definition {reference.as_str} in {owning_file.file_path}")
+                for declarations in (imported_file.type_collection_deployments, imported_file.interface_deployments):
+                    matches = resolve_from_local(
+                        reference,
+                        (deployment for deployment in declarations if deployment.name is not None),
+                        imported_file.namespace,
+                        lambda deployment: deployment.name,
+                        imported_namespace=imported_namespace.namespace,
+                        matcher=matches_use_definition_reference,
+                    )
+                    resolved = select_single_match(
+                        matches,
+                        not_found_message=f"Could not resolve FDEPL use definition {reference.as_str} in {owning_file.file_path}",
+                        ambiguous_message=f"Ambiguous FDEPL use definition {reference.as_str} in {owning_file.file_path}",
+                    )
+                    if resolved is not None:
+                        return resolved
+        return None
 
     def resolve_use_definitions(
         self,
-        deployment: TypeCollectionDeployment,
+        deployment: DeploymentDefinition,
         owning_file: FDEPLFileModel,
     ) -> list[PendingUseDefinition]:
         """Resolve visible use references and return only circular-import candidates."""
@@ -213,7 +409,7 @@ class FDEPLResolver:
 
     @staticmethod
     def _resolve_datatype(
-        deployment_element: TypeCollectionDatatypeDeployment,
+        deployment_element: DatatypeDeployment,
         type_collection: TypeCollection,
         owning_file: FDEPLFileModel,
     ) -> None:

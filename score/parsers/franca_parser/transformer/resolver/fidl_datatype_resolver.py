@@ -29,10 +29,12 @@ from score.parsers.franca_parser.model.fidl.type_collection import (
 )
 from score.parsers.franca_parser.model.franca_file import (
     FrancaFileModel,
-    FrancaTransformationContext,
 )
 from score.parsers.franca_parser.transformer.resolver.utils_resolver import (
-    expand_fqn_candidates,
+    matches_scoped_element_reference,
+    resolve_from_imported,
+    resolve_from_local,
+    select_single_match,
 )
 
 
@@ -54,21 +56,6 @@ class FIDLDataTypeResolver:
         """Resolve FIDL datatype references against a transformed Franca file graph."""
         self._files = files
 
-    def resolve(
-        self,
-        reference: QualifiedName,
-        owning_file: FIDLFileModel,
-        owning_collection: TypeCollection | InterfaceDefinition,
-    ) -> DataTypeBase:
-        """Resolve by owning scope, same-file type collections, then direct imports."""
-        resolved = self.resolve_local(reference, owning_file, owning_collection)
-        if resolved is not None:
-            return resolved
-        resolved = self.resolve_imports(reference, owning_file)
-        if resolved is not None:
-            return resolved
-        raise ValueError(f"Referenced datatype '{reference.as_str}' in '{owning_file.file_path}' was not found")
-
     def resolve_local(
         self,
         reference: QualifiedName,
@@ -76,24 +63,24 @@ class FIDLDataTypeResolver:
         owning_collection: TypeCollection | InterfaceDefinition,
     ) -> DataTypeBase | None:
         """Resolve the owning scope first, then other declarations in the same file."""
-        return self._single_match(
-            reference,
-            owning_file,
+        return select_single_match(
             self._local_matches(reference, owning_file, owning_collection),
-            required=False,
+            not_found_message=f"Referenced datatype '{reference.as_str}' in '{owning_file.file_path}' was not found",
+            ambiguous_message=f"Ambiguous datatype reference '{reference.as_str}' in '{owning_file.file_path}'",
         )
 
     def resolve_imports(
         self,
         reference: QualifiedName,
-        owning_file: FIDLFileModel | FrancaTransformationContext,
+        owning_file: FIDLFileModel,
     ) -> DataTypeBase | None:
         """Resolve only a declaration in an imported FIDL file."""
-        return self._single_match(
-            reference,
-            owning_file,
-            self._import_matches(reference, owning_file),
-            required=False,
+        return select_single_match(
+            resolve_from_imported(
+                reference, owning_file.imported_files, self._files, FIDLFileModel, self._import_matches
+            ),
+            not_found_message=f"Referenced datatype '{reference.as_str}' in '{owning_file.file_path}' was not found",
+            ambiguous_message=f"Ambiguous datatype reference '{reference.as_str}' in '{owning_file.file_path}'",
         )
 
     def resolve_local_references(
@@ -162,72 +149,40 @@ class FIDLDataTypeResolver:
         collection: TypeCollection | InterfaceDefinition,
         reference: QualifiedName,
         allow_short_name: bool,
-        base_parts: tuple[str, ...] | None = None,
+        lookup_namespace: QualifiedName | None = None,
     ) -> list[DataTypeBase]:
         """Match names only against one scope, optionally allowing an unqualified name."""
-        reference_qn_tuple = self._fqn_parts(reference)
-        if len(reference_qn_tuple) == 1 and not allow_short_name:
+        if len(reference.names) == 1 and not allow_short_name:
             return []
 
-        collection_fqn_tuple = self._fqn_parts(file_model.namespace)
+        namespace_names = tuple(file_model.namespace.names) if file_model.namespace is not None else ()
         if collection.name is not None:
-            collection_fqn_tuple = (*collection_fqn_tuple, collection.name.as_str)
-        lookup_base_parts = base_parts or collection_fqn_tuple
-        candidate_identities = set(expand_fqn_candidates(lookup_base_parts, reference_qn_tuple))
-        return [
-            datatype
-            for datatype in collection.datatypes
-            if ".".join((*collection_fqn_tuple, datatype.name.as_str)) in candidate_identities
-        ]
+            namespace_names = (*namespace_names, collection.name)
+        return resolve_from_local(
+            reference,
+            collection.datatypes,
+            QualifiedName(namespace_names) if namespace_names else None,
+            lambda datatype: datatype.name,
+            imported_namespace=lookup_namespace,
+            matcher=matches_scoped_element_reference,
+        )
 
     def _import_matches(
         self,
         reference: QualifiedName,
-        owning_file: FIDLFileModel | FrancaTransformationContext,
+        imported_file: FIDLFileModel,
+        imported_namespace: QualifiedName | None,
     ) -> list[DataTypeBase]:
         matches: list[DataTypeBase] = []
-        for imported_namespace in owning_file.imported_files:
-            imported_file = self._files.get(imported_namespace.file_path)
-            if not isinstance(imported_file, FIDLFileModel):
-                continue
-            base_parts = (
-                self._fqn_parts(imported_namespace.namespace)
-                if imported_namespace.namespace is not None
-                else self._fqn_parts(imported_file.namespace)
-            )
-            for collection in imported_file.type_collections:
-                matches.extend(
-                    self._collection_matches(
-                        imported_file,
-                        collection,
-                        reference,
-                        allow_short_name=collection.name is None,
-                        base_parts=base_parts,
-                    )
+        lookup_namespace = imported_namespace if imported_namespace is not None else imported_file.namespace
+        for collection in imported_file.type_collections:
+            matches.extend(
+                self._collection_matches(
+                    imported_file,
+                    collection,
+                    reference,
+                    allow_short_name=collection.name is None,
+                    lookup_namespace=lookup_namespace,
                 )
+            )
         return matches
-
-    @staticmethod
-    def _single_match(
-        reference: QualifiedName,
-        owning_file: FIDLFileModel | FrancaTransformationContext,
-        matches: list[DataTypeBase],
-        required: bool,
-    ) -> DataTypeBase | None:
-        distinct_matches: list[DataTypeBase] = []
-        seen_declarations: set[int] = set()
-        for match in matches:
-            if id(match) not in seen_declarations:
-                distinct_matches.append(match)
-                seen_declarations.add(id(match))
-        if len(distinct_matches) == 1:
-            return distinct_matches[0]
-        if not distinct_matches:
-            if required:
-                raise ValueError(f"Referenced datatype '{reference.as_str}' in '{owning_file.file_path}' was not found")
-            return None
-        raise ValueError(f"Ambiguous datatype reference '{reference.as_str}' in '{owning_file.file_path}'")
-
-    @staticmethod
-    def _fqn_parts(qualified_name: QualifiedName | None) -> tuple[str, ...]:
-        return tuple(name.as_str for name in qualified_name.names) if qualified_name else ()

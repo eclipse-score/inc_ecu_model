@@ -20,6 +20,7 @@ py_library(
         "fdepl/__init__.py",
         "fdepl/definition.py",
         "fdepl/fdepl_file.py",
+        "fdepl/interface_deployment.py",
         "fdepl/specification.py",
         "fdepl/type_collection_deployment.py",
         "fidl/__init__.py",
@@ -33,6 +34,7 @@ py_library(
         "//score/parsers/franca_parser:__subpackages__",
     ],
     deps = [
+        "//score/ecu_model:common",
         "//score/ecu_model/communication",
         "//score/ecu_model/data_types",
         "@pypi//lark",
